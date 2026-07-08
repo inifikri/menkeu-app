@@ -1,0 +1,26 @@
+{
+  "name": "Menkeu App",
+  "short_name": "Menkeu",
+  "description": "Aplikasi Manajemen Keuangan Pribadi",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/User_icon_2.svg/192px-User_icon_2.svg.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/User_icon_2.svg/512px-User_icon_2.svg.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}

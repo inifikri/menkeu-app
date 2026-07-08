@@ -105,26 +105,6 @@ export default function ExecutiveDashboard() {
 
     return (
         <div className="space-y-6 animate-fadeIn pb-12 font-sans">
-            {/* Section 10: AI Insights - Placed at top for immediate actionability */}
-            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-                {data.aiInsights.map((insight, idx) => (
-                    <div key={idx} className={`p-4 rounded-xl flex gap-3 text-sm border
-                        ${insight.type === 'warning' ? 'bg-orange-50 border-orange-100 text-orange-800' : 
-                          insight.type === 'success' ? 'bg-green-50 border-green-100 text-green-800' : 
-                          insight.type === 'alert' ? 'bg-red-50 border-red-100 text-red-800' : 
-                          'bg-blue-50 border-blue-100 text-blue-800'}
-                    `}>
-                        <div className="shrink-0 mt-0.5">
-                            {insight.type === 'warning' && <AlertCircle className="w-4 h-4 text-orange-500" />}
-                            {insight.type === 'success' && <CheckCircle2 className="w-4 h-4 text-green-500" />}
-                            {insight.type === 'alert' && <AlertCircle className="w-4 h-4 text-red-500" />}
-                            {insight.type === 'info' && <Lightbulb className="w-4 h-4 text-blue-500" />}
-                        </div>
-                        <p className="leading-snug">{insight.text}</p>
-                    </div>
-                ))}
-            </motion.div>
-
             {/* Section 1: Financial Summary Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 <Card className="hover:shadow-md transition-shadow relative overflow-hidden group">
