@@ -34,6 +34,8 @@ class TransactionController extends Controller
             $wallet->save();
         }
 
+        event(new \App\Events\BulkTransactionsSaved());
+
         return redirect()->back()->with('message', 'Transaksi berhasil ditambahkan.');
     }
 
