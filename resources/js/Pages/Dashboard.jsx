@@ -1,4 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { usePage, useForm, router } from '@inertiajs/react';
+import axios from 'axios';
 import {
     LayoutDashboard,
     Tag,
@@ -45,8 +48,45 @@ import {
     ArrowUp,
     CheckCircle2,
     Lightbulb,
+    Coffee,
+    CreditCard,
+    Package,
+    Bike,
+    Home,
+    Flame,
+    Wrench,
+    Fuel,
+    ShoppingCart,
+    Droplets,
+    Sparkles,
+    Wifi,
+    HandCoins,
+    Apple,
 } from "lucide-react";
 import ExecutiveDashboard from "../Components/ExecutiveDashboard";
+
+const ICON_MAP = {
+    Utensils,
+    Car,
+    FileText,
+    Tv,
+    HeartPulse,
+    Grid,
+    Package,
+    CreditCard,
+    Bike,
+    Home,
+    Flame,
+    Wrench,
+    Fuel,
+    ShoppingCart,
+    Droplets,
+    Sparkles,
+    Wifi,
+    Coffee,
+    HandCoins,
+    Apple,
+};
 
 const AVAILABLE_PERMISSIONS = [
     {
@@ -135,48 +175,22 @@ const INITIAL_MEMBERS = [
 ];
 
 const INITIAL_CATEGORIES = [
-    {
-        id: "c1",
-        name: "Makanan & Minuman",
-        icon: "Utensils",
-        color: "bg-orange-500",
-        budget: 3000000,
-    },
-    {
-        id: "c2",
-        name: "Transportasi",
-        icon: "Car",
-        color: "bg-blue-500",
-        budget: 1500000,
-    },
-    {
-        id: "c3",
-        name: "Tagihan & Utilitas",
-        icon: "FileText",
-        color: "bg-red-500",
-        budget: 2500000,
-    },
-    {
-        id: "c4",
-        name: "Hiburan",
-        icon: "Tv",
-        color: "bg-purple-500",
-        budget: 1000000,
-    },
-    {
-        id: "c5",
-        name: "Kesehatan",
-        icon: "HeartPulse",
-        color: "bg-green-500",
-        budget: 1000000,
-    },
-    {
-        id: "c6",
-        name: "Lain-lain",
-        icon: "Grid",
-        color: "bg-slate-500",
-        budget: 500000,
-    },
+    { id: "c1", name: "Makan", icon: "Utensils", color: "bg-orange-500", budget: 1500000 },
+    { id: "c2", name: "Jajan", icon: "Package", color: "bg-yellow-500", budget: 500000 },
+    { id: "c3", name: "Kartu KRL", icon: "CreditCard", color: "bg-blue-500", budget: 200000 },
+    { id: "c4", name: "Lainnya", icon: "Grid", color: "bg-slate-500", budget: 300000 },
+    { id: "c5", name: "Penitipan motor", icon: "Bike", color: "bg-indigo-500", budget: 100000 },
+    { id: "c6", name: "Pokok", icon: "Home", color: "bg-emerald-500", budget: 2000000 },
+    { id: "c7", name: "Rokok", icon: "Flame", color: "bg-red-500", budget: 400000 },
+    { id: "c8", name: "Permotoran", icon: "Wrench", color: "bg-zinc-600", budget: 300000 },
+    { id: "c9", name: "Bensin", icon: "Fuel", color: "bg-cyan-500", budget: 400000 },
+    { id: "c10", name: "Kebutuhan dapur", icon: "ShoppingCart", color: "bg-amber-600", budget: 800000 },
+    { id: "c11", name: "Kebersihan", icon: "Droplets", color: "bg-teal-400", budget: 150000 },
+    { id: "c12", name: "Skincare & Bodycare", icon: "Sparkles", color: "bg-pink-400", budget: 300000 },
+    { id: "c13", name: "Kuota", icon: "Wifi", color: "bg-violet-500", budget: 150000 },
+    { id: "c14", name: "Ngopi", icon: "Coffee", color: "bg-stone-600", budget: 300000 },
+    { id: "c15", name: "Piutang", icon: "HandCoins", color: "bg-lime-600", budget: 500000 },
+    { id: "c16", name: "Buah-buahan", icon: "Apple", color: "bg-red-400", budget: 200000 },
 ];
 
 const INITIAL_WALLETS = [
@@ -253,18 +267,76 @@ const INITIAL_TRANSACTIONS = [
     },
 ];
 
-export default function App() {
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [currentUser, setCurrentUser] = useState(null);
+export default function App({ auth, initialMembers, initialCategories, initialWallets, initialTransactions }) {
+    const currentUser = auth?.user || null;
+    const isLoggedIn = !!currentUser;
+
     const [loginEmail, setLoginEmail] = useState("");
     const [loginPassword, setLoginPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
 
-    const [activeTab, setActiveTab] = useState("dashboard");
+    const hasPermission = (permKey) => {
+        if (!currentUser) return false;
+        if (currentUser.role === "Administrator") return true;
+        return currentUser.permissions?.includes(permKey);
+    };
+
+    const [activeTab, setActiveTab] = useState(isLoggedIn ? (currentUser.role === "Administrator" || currentUser.permissions?.includes("lihat_laporan") ? "dashboard" : "profile") : "dashboard");
     const [activeSettingsTab, setActiveSettingsTab] = useState("profile");
-    const [transactions, setTransactions] = useState(INITIAL_TRANSACTIONS);
-    const [categories, setCategories] = useState(INITIAL_CATEGORIES);
-    const [wallets, setWallets] = useState(INITIAL_WALLETS);
-    const [members, setMembers] = useState(INITIAL_MEMBERS);
+    
+    // Fallback to INITIAL_ constants if database props are empty/undefined (e.g. before full integration)
+    const [transactions, setTransactions] = useState(initialTransactions || INITIAL_TRANSACTIONS);
+    const [categories, setCategories] = useState(initialCategories || INITIAL_CATEGORIES);
+    const [wallets, setWallets] = useState(initialWallets || INITIAL_WALLETS);
+    const [members, setMembers] = useState(initialMembers || INITIAL_MEMBERS);
+    
+    // Logs State
+    const [activityLogs, setActivityLogs] = useState([]);
+    const [logsPage, setLogsPage] = useState(1);
+    const [hasMoreLogs, setHasMoreLogs] = useState(true);
+    const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+
+    const fetchLogs = async (page = 1) => {
+        setIsLoadingLogs(true);
+        try {
+            const res = await axios.get(`/logs?page=${page}`);
+            const data = res.data.data;
+            if (page === 1) {
+                setActivityLogs(data);
+            } else {
+                setActivityLogs(prev => [...prev, ...data]);
+            }
+            setHasMoreLogs(res.data.current_page < res.data.last_page);
+            setLogsPage(page);
+        } catch (err) {
+            console.error('Failed to fetch logs', err);
+        } finally {
+            setIsLoadingLogs(false);
+        }
+    };
+
+    // Load initial logs when tab is opened
+    useEffect(() => {
+        if (activeSettingsTab === "logs" && activityLogs.length === 0) {
+            fetchLogs(1);
+        }
+    }, [activeSettingsTab]);
+
+    const logActivity = (action, description, icon = 'Activity', color = 'bg-blue-500') => {
+        axios.post('/logs', { action, description, icon, color })
+            .then(res => {
+                // Prepend to current logs
+                setActivityLogs(prev => [res.data, ...prev]);
+            })
+            .catch(err => console.error('Failed to log activity', err));
+    };
+
+    useEffect(() => {
+        if (initialTransactions) setTransactions(initialTransactions);
+        if (initialCategories) setCategories(initialCategories);
+        if (initialWallets) setWallets(initialWallets);
+        if (initialMembers) setMembers(initialMembers);
+    }, [initialTransactions, initialCategories, initialWallets, initialMembers]);
 
     const [toast, setToast] = useState(null);
 
@@ -300,17 +372,26 @@ export default function App() {
         action: true,
     });
 
-    const [newCat, setNewCat] = useState({ name: "", budget: "" });
+    const [newCat, setNewCat] = useState({
+        id: null,
+        name: "",
+        budget: "",
+        icon: "Grid",
+        color: "bg-blue-500",
+    });
+    const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
     const [newWallet, setNewWallet] = useState({
         name: "",
         balance: "",
         type: "Bank",
     });
     const [newMember, setNewMember] = useState({
+        id: null,
         name: "",
         role: "Anggota",
         permissions: [...ROLE_PERMISSIONS["Anggota"]],
     });
+    const [selectedMemberForDetail, setSelectedMemberForDetail] = useState(null);
     const [showAddMemberModal, setShowAddMemberModal] = useState(false);
     const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
 
@@ -321,7 +402,7 @@ export default function App() {
     const [selectedYear, setSelectedYear] = useState(2026);
     const [selectedMonth, setSelectedMonth] = useState(7);
     const [showScrollTop, setShowScrollTop] = useState(false);
-    
+
     // PWA Install State
     const [installPrompt, setInstallPrompt] = useState(null);
     const [showInstallBanner, setShowInstallBanner] = useState(false);
@@ -329,23 +410,31 @@ export default function App() {
     useEffect(() => {
         const handleScroll = () => {
             // Tampilkan ketika mendekati paling bawah (margin 150px) dan sudah ter-scroll
-            const isBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 150;
+            const isBottom =
+                window.innerHeight + window.scrollY >=
+                document.documentElement.scrollHeight - 150;
             setShowScrollTop(window.scrollY > 100 && isBottom);
         };
 
         window.addEventListener("scroll", handleScroll);
-        
+
         // PWA Install Prompt Listener
         const handleBeforeInstallPrompt = (e) => {
             e.preventDefault();
             setInstallPrompt(e);
             setShowInstallBanner(true);
         };
-        window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+        window.addEventListener(
+            "beforeinstallprompt",
+            handleBeforeInstallPrompt,
+        );
 
         return () => {
             window.removeEventListener("scroll", handleScroll);
-            window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+            window.removeEventListener(
+                "beforeinstallprompt",
+                handleBeforeInstallPrompt,
+            );
         };
     }, []);
 
@@ -353,18 +442,30 @@ export default function App() {
         if (!installPrompt) return;
         installPrompt.prompt();
         const { outcome } = await installPrompt.userChoice;
-        if (outcome === 'accepted') {
-            console.log('User accepted the install prompt');
+        if (outcome === "accepted") {
+            console.log("User accepted the install prompt");
         }
         setInstallPrompt(null);
         setShowInstallBanner(false);
     };
 
     const aiInsights = [
-        { text: "Pengeluaran makan meningkat 12% dibanding bulan lalu. Pertimbangkan untuk lebih sering memasak di rumah.", type: 'warning' },
-        { text: "Saving Rate Anda sangat sehat di angka 40%, pertahankan momentum ini!", type: 'success' },
-        { text: "Budget Belanja telah over budget sebesar Rp 500.000.", type: 'alert' },
-        { text: "Kategori transport mengalami penurunan sebesar 8%.", type: 'info' }
+        {
+            text: "Pengeluaran makan meningkat 12% dibanding bulan lalu. Pertimbangkan untuk lebih sering memasak di rumah.",
+            type: "warning",
+        },
+        {
+            text: "Saving Rate Anda sangat sehat di angka 40%, pertahankan momentum ini!",
+            type: "success",
+        },
+        {
+            text: "Budget Belanja telah over budget sebesar Rp 500.000.",
+            type: "alert",
+        },
+        {
+            text: "Kategori transport mengalami penurunan sebesar 8%.",
+            type: "info",
+        },
     ];
 
     useEffect(() => {
@@ -421,6 +522,28 @@ export default function App() {
             });
         return map;
     }, [transactions, categories]);
+
+    const expenseByCategoryForSelectedMonth = useMemo(() => {
+        const map = {};
+        categories.forEach((c) => {
+            map[c.id] = 0;
+        });
+        transactions
+            .filter((t) => {
+                if (t.type !== "expense") return false;
+                const txDate = new Date(t.date);
+                return (
+                    txDate.getMonth() + 1 === selectedMonth &&
+                    txDate.getFullYear() === selectedYear
+                );
+            })
+            .forEach((t) => {
+                if (map[t.categoryId] !== undefined) {
+                    map[t.categoryId] += t.amount;
+                }
+            });
+        return map;
+    }, [transactions, categories, selectedMonth, selectedYear]);
 
     const expenseByMember = useMemo(() => {
         const map = {};
@@ -490,53 +613,45 @@ export default function App() {
 
     const handleCredentialLogin = (e) => {
         e.preventDefault();
-        if (!loginEmail || !loginPassword) {
+        if (!loginEmail.trim() || !loginPassword.trim()) {
             showToast("Harap isi email dan kata sandi Anda.", "error");
             return;
         }
 
-        // Cari kecocokan di mock data email
-        const foundMember = members.find(
-            (m) => m.email.toLowerCase() === loginEmail.toLowerCase().trim(),
-        );
-        if (foundMember && loginPassword === "123456") {
-            // Password default simulasi
-            setCurrentUser(foundMember);
-            setIsLoggedIn(true);
-            showToast(`Selamat datang kembali, ${foundMember.name}!`);
-        } else if (foundMember) {
-            showToast(
-                'Kata sandi salah. Gunakan sandi simulasi "123456"',
-                "error",
-            );
-        } else {
-            // Jika login baru
-            const newSimulatedUser = {
-                id: "m_" + Date.now(),
-                name: loginEmail.split("@")[0],
-                role: "Anggota",
-                avatarColor: "bg-blue-600",
-                email: loginEmail,
-            };
-            setMembers([...members, newSimulatedUser]);
-            setCurrentUser(newSimulatedUser);
-            setIsLoggedIn(true);
-            showToast(`Sesi baru dibuat untuk ${loginEmail}`);
-        }
+        router.post(route('login'), {
+            email: loginEmail,
+            password: loginPassword,
+        }, {
+            onError: (errors) => {
+                showToast(errors.email || "Login gagal, silakan periksa kredensial Anda.", "error");
+            },
+            onSuccess: () => {
+                showToast(`Selamat datang kembali!`);
+            }
+        });
     };
 
     const handleQuickLogin = (member) => {
         setCurrentUser(member);
         setIsLoggedIn(true);
+        if (member.role !== "Administrator" && !member.permissions?.includes("lihat_laporan")) {
+            setActiveTab("profile");
+        } else {
+            setActiveTab("dashboard");
+        }
         showToast(`Berhasil masuk sebagai ${member.name}`);
     };
 
     const handleLogout = () => {
-        setIsLoggedIn(false);
-        setCurrentUser(null);
-        setLoginEmail("");
-        setLoginPassword("");
-        showToast("Anda telah keluar dari aplikasi", "info");
+        if (window.confirm("Apakah Anda yakin ingin keluar?")) {
+            router.post(route('logout'), {}, {
+                onSuccess: () => {
+                    setLoginEmail("");
+                    setLoginPassword("");
+                    showToast("Anda telah keluar dari aplikasi", "info");
+                }
+            });
+        }
     };
 
     const handleStartAddTransaction = () => {
@@ -645,6 +760,7 @@ export default function App() {
         showToast(
             `${finalTransactions.length} Transaksi berhasil ditambahkan.`,
         );
+        logActivity('Tambah Transaksi', `Menambahkan ${finalTransactions.length} transaksi baru dengan total Rp ${finalTransactions.reduce((acc, tx) => acc + tx.amount, 0).toLocaleString('id-ID')}`, 'PlusCircle', 'bg-blue-500');
     };
 
     const handleOpenEdit = (tx) => {
@@ -696,17 +812,18 @@ export default function App() {
             return updated;
         });
 
-        setTransactions((prev) =>
-            prev.map((t) =>
-                t.id === editingTx.id ? { ...editingTx, amount: amountNum } : t,
-            ),
+        const updatedTransactions = transactions.map((t) =>
+            t.id === editingTx.id ? { ...editingTx, amount: amountNum } : t
         );
+        setTransactions(updatedTransactions);
         setEditingTx(null);
-        showToast("Transaksi berhasil diperbarui.");
+        showToast("Transaksi berhasil diperbarui");
+        logActivity('Update Transaksi', `Memperbarui transaksi: ${editingTx.description}`, 'Edit', 'bg-amber-500');
     };
 
     const handleDeleteTransaction = (id, type, amount, walletId) => {
-        setTransactions(transactions.filter((t) => t.id !== id));
+        const txToDelete = transactions.find(t => t.id === id);
+        const updatedTransactions = transactions.filter((t) => t.id !== id);
 
         setWallets((prevWallets) =>
             prevWallets.map((w) => {
@@ -723,7 +840,9 @@ export default function App() {
             }),
         );
 
+        setTransactions(updatedTransactions);
         showToast("Transaksi berhasil dihapus", "info");
+        logActivity('Hapus Transaksi', `Menghapus transaksi: ${txToDelete?.description}`, 'Trash2', 'bg-rose-500');
     };
 
     const handleAddCategory = (e) => {
@@ -733,17 +852,52 @@ export default function App() {
             return;
         }
 
-        const createdCat = {
-            id: "c_" + Date.now(),
-            name: newCat.name,
-            budget: parseFloat(newCat.budget),
+        if (newCat.id) {
+            setCategories(
+                categories.map((c) =>
+                    c.id === newCat.id
+                        ? {
+                              ...c,
+                              name: newCat.name,
+                              budget: parseFloat(newCat.budget),
+                              icon: newCat.icon || c.icon,
+                              color: newCat.color || c.color,
+                          }
+                        : c,
+                ),
+            );
+            showToast("Kategori berhasil diubah");
+        } else {
+            const newC = {
+                id: "c_" + Date.now(),
+                name: newCat.name,
+                budget: parseFloat(newCat.budget),
+                icon: newCat.icon || "Grid",
+                color: newCat.color || "bg-blue-500",
+            };
+            setCategories([...categories, newC]);
+            setShowAddCategoryModal(false);
+            showToast("Kategori baru berhasil ditambahkan");
+            logActivity('Tambah Kategori', `Kategori baru ditambahkan: ${newCat.name}`, 'Tag', 'bg-emerald-500');
+        }
+
+        setNewCat({
+            id: null,
+            name: "",
+            budget: "",
             icon: "Grid",
             color: "bg-blue-500",
-        };
+        });
+        setShowAddCategoryModal(false);
+    };
 
-        setCategories([...categories, createdCat]);
-        setNewCat({ name: "", budget: "" });
-        showToast("Kategori baru berhasil dibuat");
+    const handleDeleteCategory = (id) => {
+        if (window.confirm("Yakin ingin menghapus kategori ini?")) {
+            const catToDel = categories.find(c => c.id === id);
+            setCategories(categories.filter((c) => c.id !== id));
+            showToast("Kategori berhasil dihapus", "info");
+            logActivity('Hapus Kategori', `Kategori dihapus: ${catToDel?.name}`, 'Trash2', 'bg-rose-500');
+        }
     };
 
     const handleAddWallet = (e) => {
@@ -772,32 +926,58 @@ export default function App() {
             return;
         }
 
-        const colors = [
-            "bg-purple-500",
-            "bg-teal-500",
-            "bg-indigo-500",
-            "bg-amber-500",
-            "bg-sky-500",
-        ];
-        const randomColor = colors[Math.floor(Math.random() * colors.length)];
+        if (newMember.id) {
+            const updatedMembers = members.map(m => m.id === newMember.id ? {
+                ...m,
+                name: newMember.name,
+                role: newMember.role,
+                permissions: [...newMember.permissions],
+            } : m);
+            setMembers(updatedMembers);
+            setShowAddMemberModal(false);
+            showToast("Data anggota berhasil diperbarui");
+            logActivity('Update Anggota', `Memperbarui data anggota: ${newMember.name}`, 'User', 'bg-amber-500');
+        } else {
+            const colors = [
+                "bg-purple-500",
+                "bg-teal-500",
+                "bg-indigo-500",
+                "bg-amber-500",
+                "bg-sky-500",
+            ];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-        const createdMember = {
-            id: "m_" + Date.now(),
-            name: newMember.name,
-            role: newMember.role,
-            avatarColor: randomColor,
-            email: `${newMember.name.toLowerCase().replace(/\s+/g, "")}@finkeluarga.com`,
-            permissions: [...newMember.permissions],
-        };
+            const newM = {
+                id: "m_" + Date.now(),
+                name: newMember.name,
+                role: newMember.role,
+                avatarColor: randomColor,
+                email: `${newMember.name.toLowerCase().replace(/\s+/g, "")}@finkeluarga.com`,
+                permissions: [...newMember.permissions],
+            };
 
-        setMembers([...members, createdMember]);
+            setMembers([...members, newM]);
+            setShowAddMemberModal(false);
+            showToast("Anggota keluarga baru berhasil didaftarkan");
+            logActivity('Tambah Anggota', `Mendaftarkan anggota baru: ${newMember.name}`, 'UserPlus', 'bg-emerald-500');
+        }
+
         setNewMember({
+            id: null,
             name: "",
             role: "Anggota",
             permissions: [...ROLE_PERMISSIONS["Anggota"]],
         });
         setShowAddMemberModal(false);
-        showToast("Anggota keluarga baru berhasil didaftarkan");
+    };
+
+    const handleDeleteMember = (id) => {
+        if (window.confirm("Yakin ingin menghapus anggota ini?")) {
+            const memberToDel = members.find(m => m.id === id);
+            setMembers(members.filter((m) => m.id !== id));
+            showToast("Anggota berhasil dihapus", "info");
+            logActivity('Hapus Anggota', `Menghapus anggota: ${memberToDel?.name}`, 'UserMinus', 'bg-rose-500');
+        }
     };
 
     const handleTogglePermission = (permKey) => {
@@ -934,41 +1114,7 @@ export default function App() {
                             </p>
                         </div>
 
-                        {/* QUICK MEMBER ACCESS BAR */}
-                        <div className="space-y-3">
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                Akses Cepat Anggota Keluarga
-                            </p>
-                            <div className="grid grid-cols-3 gap-2.5">
-                                {members.slice(0, 3).map((m) => (
-                                    <button
-                                        key={m.id}
-                                        onClick={() => handleQuickLogin(m)}
-                                        className="p-3 rounded-2xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/30 transition-all text-center flex flex-col items-center space-y-1.5 group"
-                                    >
-                                        <span
-                                            className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm ${m.avatarColor}`}
-                                        >
-                                            {m.name.charAt(0)}
-                                        </span>
-                                        <span className="text-[10px] font-bold text-slate-700 group-hover:text-blue-600 line-clamp-1">
-                                            {m.name.split(" ")[0]}
-                                        </span>
-                                        <span className="text-[8px] text-slate-400">
-                                            {m.role}
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
 
-                        <div className="flex items-center my-1.5">
-                            <div className="flex-grow border-t border-slate-200"></div>
-                            <span className="mx-3 text-[10px] font-semibold text-slate-400 uppercase">
-                                Atau Gunakan Email
-                            </span>
-                            <div className="flex-grow border-t border-slate-200"></div>
-                        </div>
 
                         {/* FORM CREDENTIALS LOGIN */}
                         <form
@@ -1005,14 +1151,26 @@ export default function App() {
                                 <div className="relative">
                                     <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                                     <input
-                                        type="password"
+                                        type={showPassword ? "text" : "password"}
                                         placeholder="••••••••"
                                         value={loginPassword}
                                         onChange={(e) =>
                                             setLoginPassword(e.target.value)
                                         }
-                                        className="w-full pl-9 pr-4 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                                        className="w-full pl-9 pr-10 py-2.5 rounded-xl border border-slate-200 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
                                     />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                        title={showPassword ? "Sembunyikan Sandi" : "Lihat Sandi"}
+                                    >
+                                        {showPassword ? (
+                                            <EyeOff className="w-4 h-4" />
+                                        ) : (
+                                            <Eye className="w-4 h-4" />
+                                        )}
+                                    </button>
                                 </div>
                             </div>
 
@@ -1038,11 +1196,17 @@ export default function App() {
                     {/* KIRI: Nama Halaman */}
                     <div className="text-left">
                         <h1 className="font-extrabold text-xl md:text-2xl text-slate-800 tracking-tight capitalize">
-                            {activeTab === 'dashboard' ? 'Dashboard' : 
-                             activeTab === 'dompet' ? 'Kantong' : 
-                             activeTab === 'budgeting' ? 'Budgeting' : 
-                             activeTab === 'pencatatan' ? 'History Transaksi' : 
-                             activeTab === 'profile' ? 'Profile' : activeTab}
+                            {activeTab === "dashboard"
+                                ? "Dashboard"
+                                : activeTab === "dompet"
+                                  ? "Kantong"
+                                  : activeTab === "budgeting"
+                                    ? "Budgeting"
+                                    : activeTab === "pencatatan"
+                                      ? "History Transaksi"
+                                      : activeTab === "profile"
+                                        ? "Profile"
+                                        : activeTab}
                         </h1>
                     </div>
 
@@ -1050,8 +1214,12 @@ export default function App() {
                     <div className="flex items-center space-x-1 md:space-x-2">
                         {/* 1. Calendar Icon (Custom Dropdown) */}
                         <div className="relative">
-                            <button 
-                                onClick={() => setShowCalendarDropdown(!showCalendarDropdown)}
+                            <button
+                                onClick={() =>
+                                    setShowCalendarDropdown(
+                                        !showCalendarDropdown,
+                                    )
+                                }
                                 className="flex items-center justify-center w-9 h-9 md:w-10 md:h-10 text-slate-400 hover:text-blue-600 transition-colors rounded-full hover:bg-slate-100"
                             >
                                 <Calendar className="w-5 h-5 md:w-5 md:h-5" />
@@ -1060,32 +1228,81 @@ export default function App() {
                             {showCalendarDropdown && (
                                 <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 overflow-hidden animate-fadeIn origin-top-right">
                                     <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-blue-50/50">
-                                        <button 
-                                            onClick={() => setSelectedYear(selectedYear - 1)}
+                                        <button
+                                            onClick={() =>
+                                                setSelectedYear(
+                                                    selectedYear - 1,
+                                                )
+                                            }
                                             className="p-1.5 hover:bg-white rounded-lg text-slate-500 transition-colors"
                                         >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                                            <svg
+                                                className="w-4 h-4"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth="2"
+                                                    d="M15 19l-7-7 7-7"
+                                                />
+                                            </svg>
                                         </button>
-                                        <span className="font-bold text-slate-800">{selectedYear}</span>
-                                        <button 
-                                            onClick={() => setSelectedYear(selectedYear + 1)}
+                                        <span className="font-bold text-slate-800">
+                                            {selectedYear}
+                                        </span>
+                                        <button
+                                            onClick={() =>
+                                                setSelectedYear(
+                                                    selectedYear + 1,
+                                                )
+                                            }
                                             className="p-1.5 hover:bg-white rounded-lg text-slate-500 transition-colors"
                                         >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" /></svg>
+                                            <svg
+                                                className="w-4 h-4"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    strokeWidth="2"
+                                                    d="M9 5l7 7-7 7"
+                                                />
+                                            </svg>
                                         </button>
                                     </div>
                                     <div className="p-3 grid grid-cols-3 gap-2">
-                                        {['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agt', 'Sep', 'Okt', 'Nov', 'Des'].map((m, i) => (
-                                            <button 
+                                        {[
+                                            "Jan",
+                                            "Feb",
+                                            "Mar",
+                                            "Apr",
+                                            "Mei",
+                                            "Jun",
+                                            "Jul",
+                                            "Agt",
+                                            "Sep",
+                                            "Okt",
+                                            "Nov",
+                                            "Des",
+                                        ].map((m, i) => (
+                                            <button
                                                 key={i}
                                                 onClick={() => {
                                                     setSelectedMonth(i + 1);
-                                                    setShowCalendarDropdown(false);
+                                                    setShowCalendarDropdown(
+                                                        false,
+                                                    );
                                                 }}
                                                 className={`py-2 text-xs font-semibold rounded-xl transition-all ${
-                                                    selectedMonth === i + 1 
-                                                        ? 'bg-blue-600 text-white shadow-md shadow-blue-200' 
-                                                        : 'text-slate-600 hover:bg-slate-100'
+                                                    selectedMonth === i + 1
+                                                        ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                                                        : "text-slate-600 hover:bg-slate-100"
                                                 }`}
                                             >
                                                 {m}
@@ -1098,40 +1315,69 @@ export default function App() {
 
                         {/* 2. Notification Icon */}
                         <div className="relative">
-                            <button 
-                                onClick={() => setShowNotifDropdown(!showNotifDropdown)}
+                            <button
+                                onClick={() =>
+                                    setShowNotifDropdown(!showNotifDropdown)
+                                }
                                 className="relative flex items-center justify-center w-9 h-9 md:w-10 md:h-10 text-slate-400 hover:text-blue-600 transition-colors rounded-full hover:bg-slate-100"
                             >
                                 <Bell className="w-5 h-5 md:w-5 md:h-5" />
                                 <span className="absolute top-1.5 right-1.5 md:top-2 md:right-2 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-slate-50"></span>
                             </button>
-                            
+
                             {showNotifDropdown && (
                                 <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 overflow-hidden animate-fadeIn origin-top-right">
                                     <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-                                        <h3 className="font-bold text-slate-800 text-sm">Notifikasi</h3>
-                                        <span className="text-xs font-semibold bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">{aiInsights.length} Baru</span>
+                                        <h3 className="font-bold text-slate-800 text-sm">
+                                            Notifikasi
+                                        </h3>
+                                        <span className="text-xs font-semibold bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full">
+                                            {aiInsights.length} Baru
+                                        </span>
                                     </div>
                                     <div className="max-h-[300px] overflow-y-auto">
                                         {aiInsights.map((insight, idx) => (
-                                            <div key={idx} className="p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors flex gap-3 cursor-pointer">
+                                            <div
+                                                key={idx}
+                                                className="p-4 border-b border-slate-50 hover:bg-slate-50 transition-colors flex gap-3 cursor-pointer"
+                                            >
                                                 <div className="shrink-0 mt-0.5">
-                                                    {insight.type === 'warning' && <AlertCircle className="w-5 h-5 text-orange-500" />}
-                                                    {insight.type === 'success' && <CheckCircle2 className="w-5 h-5 text-green-500" />}
-                                                    {insight.type === 'alert' && <AlertCircle className="w-5 h-5 text-red-500" />}
-                                                    {insight.type === 'info' && <Lightbulb className="w-5 h-5 text-blue-500" />}
+                                                    {insight.type ===
+                                                        "warning" && (
+                                                        <AlertCircle className="w-5 h-5 text-orange-500" />
+                                                    )}
+                                                    {insight.type ===
+                                                        "success" && (
+                                                        <CheckCircle2 className="w-5 h-5 text-green-500" />
+                                                    )}
+                                                    {insight.type ===
+                                                        "alert" && (
+                                                        <AlertCircle className="w-5 h-5 text-red-500" />
+                                                    )}
+                                                    {insight.type ===
+                                                        "info" && (
+                                                        <Lightbulb className="w-5 h-5 text-blue-500" />
+                                                    )}
                                                 </div>
-                                                <p className="text-sm text-slate-600 leading-snug">{insight.text}</p>
+                                                <p className="text-sm text-slate-600 leading-snug">
+                                                    {insight.text}
+                                                </p>
                                             </div>
                                         ))}
                                     </div>
                                     <div className="p-3 text-center border-t border-slate-100">
-                                        <button className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors" onClick={() => setShowNotifDropdown(false)}>Tutup</button>
+                                        <button
+                                            className="text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors"
+                                            onClick={() =>
+                                                setShowNotifDropdown(false)
+                                            }
+                                        >
+                                            Tutup
+                                        </button>
                                     </div>
                                 </div>
                             )}
                         </div>
-
                     </div>
                 </div>
             </header>
@@ -1170,18 +1416,23 @@ export default function App() {
                             <Download className="w-5 h-5 text-white" />
                         </div>
                         <div>
-                            <p className="font-bold text-sm">Pasang Aplikasi Menkeu</p>
-                            <p className="text-xs text-blue-100 hidden sm:block">Akses lebih cepat langsung dari layar utama (Home Screen) HP Anda.</p>
+                            <p className="font-bold text-sm">
+                                Pasang Aplikasi Menkeu
+                            </p>
+                            <p className="text-xs text-blue-100 hidden sm:block">
+                                Akses lebih cepat langsung dari layar utama
+                                (Home Screen) HP Anda.
+                            </p>
                         </div>
                     </div>
                     <div className="flex items-center space-x-2 shrink-0">
-                        <button 
+                        <button
                             onClick={handleInstallApp}
                             className="bg-white text-blue-700 px-4 py-1.5 rounded-full text-xs font-bold hover:bg-slate-100 transition-colors shadow-sm"
                         >
                             Install
                         </button>
-                        <button 
+                        <button
                             onClick={() => setShowInstallBanner(false)}
                             className="p-1.5 hover:bg-white/20 rounded-full transition-colors"
                         >
@@ -1194,26 +1445,25 @@ export default function App() {
             {/* === AREA KONTEN UTAMA === */}
             <main className="flex-1 max-w-6xl w-full mx-auto p-4 md:py-8 pb-24 md:pb-8 grid grid-cols-1 md:grid-cols-4 gap-6">
                 {/* SIDEBAR NAVIGATION (DESKTOP) */}
-                <aside className="hidden md:block col-span-1 h-fit space-y-1.5 pr-2">
+                <aside className="hidden md:block col-span-1 h-fit space-y-1.5 pr-2 sticky top-8">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 mb-4">
                         Menu Utama
                     </p>
                     {[
-                        {
+                        hasPermission("lihat_laporan") && {
                             id: "dashboard",
                             label: "Dashboard",
                             icon: LayoutDashboard,
                         },
-                        { id: "dompet", label: "Kantong", icon: Wallet },
-                        { id: "budgeting", label: "Budgeting", icon: PieChart },
+                        hasPermission("kelola_dompet") && { id: "dompet", label: "Kantong", icon: Wallet },
+                        hasPermission("atur_budget") && { id: "budgeting", label: "Budgeting", icon: PieChart },
+                        hasPermission("ekspor_data") && { id: "export", label: "Ekspor Data", icon: Download },
                         {
-                            id: "anggota",
-                            label: "Anggota Keluarga",
-                            icon: Users,
+                            id: "profile",
+                            label: "Profile",
+                            icon: "PROFILE_PHOTO",
                         },
-                        { id: "export", label: "Ekspor Data", icon: Download },
-                        { id: "profile", label: "Profile", icon: "PROFILE_PHOTO" },
-                    ].map((item) => {
+                    ].filter(Boolean).map((item) => {
                         const IconComponent = item.icon;
                         const isSelected = activeTab === item.id;
                         return (
@@ -1232,8 +1482,14 @@ export default function App() {
                                 }`}
                             >
                                 {item.icon === "PROFILE_PHOTO" ? (
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] ${isSelected ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-500"}`}>
-                                        {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
+                                    <div
+                                        className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] ${isSelected ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-500"}`}
+                                    >
+                                        {currentUser?.name
+                                            ? currentUser.name
+                                                  .charAt(0)
+                                                  .toUpperCase()
+                                            : "U"}
                                     </div>
                                 ) : (
                                     <IconComponent
@@ -1259,14 +1515,18 @@ export default function App() {
                                     {/* TAB TOGGLE (Top, Center, Rounded 50%) */}
                                     <div className="flex justify-center mb-6">
                                         <div className="flex bg-slate-200/60 p-1.5 rounded-full w-full max-w-sm shadow-inner relative">
-                                            <button 
-                                                onClick={() => setActiveTab('budgeting')}
+                                            <button
+                                                onClick={() =>
+                                                    setActiveTab("budgeting")
+                                                }
                                                 className={`flex-1 px-4 py-2.5 rounded-full text-sm font-bold transition-all text-slate-500 hover:text-slate-800`}
                                             >
                                                 Budgeting
                                             </button>
-                                            <button 
-                                                onClick={() => setActiveTab('pencatatan')}
+                                            <button
+                                                onClick={() =>
+                                                    setActiveTab("pencatatan")
+                                                }
                                                 className={`flex-1 px-4 py-2.5 rounded-full text-sm font-bold transition-all bg-white shadow-md text-blue-600`}
                                             >
                                                 History Transaksi
@@ -1283,7 +1543,11 @@ export default function App() {
                                                 type="text"
                                                 placeholder="Cari transaksi..."
                                                 value={searchQuery}
-                                                onChange={(e) => setSearchQuery(e.target.value)}
+                                                onChange={(e) =>
+                                                    setSearchQuery(
+                                                        e.target.value,
+                                                    )
+                                                }
                                                 className="w-full pl-11 pr-4 py-2.5 text-sm rounded-full bg-white border border-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 transition-all"
                                             />
                                         </div>
@@ -1293,23 +1557,38 @@ export default function App() {
                                             <div className="relative w-full md:w-48">
                                                 <select
                                                     value={filterCategory}
-                                                    onChange={(e) => setFilterCategory(e.target.value)}
+                                                    onChange={(e) =>
+                                                        setFilterCategory(
+                                                            e.target.value,
+                                                        )
+                                                    }
                                                     className="w-full px-4 py-2.5 bg-white border border-slate-200 shadow-sm rounded-full text-sm font-bold text-slate-600 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none pr-8 transition-all"
                                                 >
-                                                    <option value="all">Semua Kategori</option>
+                                                    <option value="all">
+                                                        Semua Kategori
+                                                    </option>
                                                     {categories.map((c) => (
-                                                        <option key={c.id} value={c.id}>{c.name}</option>
+                                                        <option
+                                                            key={c.id}
+                                                            value={c.id}
+                                                        >
+                                                            {c.name}
+                                                        </option>
                                                     ))}
                                                 </select>
                                             </div>
 
                                             {/* Button Tambah */}
                                             <button
-                                                onClick={() => handleStartAddTransaction()}
+                                                onClick={() =>
+                                                    handleStartAddTransaction()
+                                                }
                                                 className="px-4 py-2.5 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-700 transition-all text-sm flex items-center justify-center shadow-md shadow-blue-200 shrink-0"
                                             >
                                                 <Plus className="w-4 h-4" />
-                                                <span className="hidden sm:inline ml-1.5">Catat</span>
+                                                <span className="hidden sm:inline ml-1.5">
+                                                    Catat
+                                                </span>
                                             </button>
                                         </div>
                                     </div>
@@ -1317,33 +1596,85 @@ export default function App() {
                                     {/* DAFTAR RIWAYAT TRANSAKSI - Grouped by Hari */}
                                     <div className="space-y-6 pt-4">
                                         {(() => {
-                                            const daysIndo = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
-                                            const monthsIndo = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Juli", "Agt", "Sep", "Okt", "Nov", "Des"];
-                                            
+                                            const daysIndo = [
+                                                "Minggu",
+                                                "Senin",
+                                                "Selasa",
+                                                "Rabu",
+                                                "Kamis",
+                                                "Jumat",
+                                                "Sabtu",
+                                            ];
+                                            const monthsIndo = [
+                                                "Jan",
+                                                "Feb",
+                                                "Mar",
+                                                "Apr",
+                                                "Mei",
+                                                "Jun",
+                                                "Juli",
+                                                "Agt",
+                                                "Sep",
+                                                "Okt",
+                                                "Nov",
+                                                "Des",
+                                            ];
+
                                             // Group transactions by Date string
                                             const groupedTxs = {};
-                                            paginatedTransactions.forEach(tx => {
-                                                const d = new Date(tx.date);
-                                                const dateKey = `${daysIndo[d.getDay()]}, ${d.getDate()} ${monthsIndo[d.getMonth()]}`;
-                                                if (!groupedTxs[dateKey]) groupedTxs[dateKey] = [];
-                                                groupedTxs[dateKey].push(tx);
-                                            });
+                                            paginatedTransactions.forEach(
+                                                (tx) => {
+                                                    const d = new Date(tx.date);
+                                                    const dateKey = `${daysIndo[d.getDay()]}, ${d.getDate()} ${monthsIndo[d.getMonth()]}`;
+                                                    if (!groupedTxs[dateKey])
+                                                        groupedTxs[dateKey] =
+                                                            [];
+                                                    groupedTxs[dateKey].push(
+                                                        tx,
+                                                    );
+                                                },
+                                            );
 
-                                            return Object.entries(groupedTxs).map(([dateKey, txs]) => (
-                                                <div key={dateKey} className="space-y-3">
+                                            return Object.entries(
+                                                groupedTxs,
+                                            ).map(([dateKey, txs]) => (
+                                                <div
+                                                    key={dateKey}
+                                                    className="space-y-3"
+                                                >
                                                     {/* HARI / TANGGAL HEADER */}
                                                     <div className="flex items-center gap-2 pl-2">
-                                                        <h3 className="font-extrabold text-slate-500 text-sm">{dateKey}</h3>
+                                                        <h3 className="font-extrabold text-slate-500 text-sm">
+                                                            {dateKey}
+                                                        </h3>
                                                         <div className="h-px bg-slate-200 flex-1 ml-2"></div>
                                                     </div>
 
                                                     <div className="space-y-3">
                                                         {txs.map((tx) => {
-                                                            const member = members.find((m) => m.id === tx.memberId);
-                                                            const cat = categories.find((c) => c.id === tx.categoryId);
-                                                            const wallet = wallets.find((w) => w.id === tx.walletId);
-                                                            const iconMap = { Utensils, Car, FileText, Tv, HeartPulse, Grid };
-                                                            const IconComponent = cat?.icon && iconMap[cat.icon] ? iconMap[cat.icon] : Grid;
+                                                            const member =
+                                                                members.find(
+                                                                    (m) =>
+                                                                        m.id ===
+                                                                        tx.memberId,
+                                                                );
+                                                            const cat =
+                                                                categories.find(
+                                                                    (c) =>
+                                                                        c.id ===
+                                                                        tx.categoryId,
+                                                                );
+                                                            const wallet =
+                                                                wallets.find(
+                                                                    (w) =>
+                                                                        w.id ===
+                                                                        tx.walletId,
+                                                                );
+                                                            const IconComponent =
+                                                                cat?.icon &&
+                                                                ICON_MAP[cat.icon]
+                                                                    ? ICON_MAP[cat.icon]
+                                                                    : Grid;
 
                                                             return (
                                                                 <div
@@ -1360,19 +1691,33 @@ export default function App() {
                                                                         </div>
                                                                         <div className="flex-1 min-w-0">
                                                                             <p className="font-bold text-slate-800 text-sm line-clamp-1">
-                                                                                {tx.description}
+                                                                                {
+                                                                                    tx.description
+                                                                                }
                                                                             </p>
                                                                             <div className="flex items-center flex-wrap gap-2 mt-1 text-[11px] text-slate-400 font-medium">
                                                                                 <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md font-bold">
-                                                                                    {cat?.name || "Lain-lain"}
+                                                                                    {cat?.name ||
+                                                                                        "Lain-lain"}
                                                                                 </span>
-                                                                                <span className="text-slate-300">•</span>
-                                                                                <span className="flex items-center gap-1">
-                                                                                    <User className="w-3 h-3" /> {member?.name.split(" ")[0]}
+                                                                                <span className="text-slate-300">
+                                                                                    •
                                                                                 </span>
-                                                                                <span className="text-slate-300">•</span>
                                                                                 <span className="flex items-center gap-1">
-                                                                                    <Wallet className="w-3 h-3" /> {wallet?.name || "-"}
+                                                                                    <User className="w-3 h-3" />{" "}
+                                                                                    {
+                                                                                        member?.name.split(
+                                                                                            " ",
+                                                                                        )[0]
+                                                                                    }
+                                                                                </span>
+                                                                                <span className="text-slate-300">
+                                                                                    •
+                                                                                </span>
+                                                                                <span className="flex items-center gap-1">
+                                                                                    <Wallet className="w-3 h-3" />{" "}
+                                                                                    {wallet?.name ||
+                                                                                        "-"}
                                                                                 </span>
                                                                             </div>
                                                                         </div>
@@ -1382,20 +1727,36 @@ export default function App() {
                                                                         <span
                                                                             className={`font-black text-base whitespace-nowrap ${tx.type === "income" ? "text-emerald-600" : "text-rose-600"}`}
                                                                         >
-                                                                            {tx.type === "income" ? "+" : "-"}
-                                                                            {formatIDR(tx.amount)}
+                                                                            {tx.type ===
+                                                                            "income"
+                                                                                ? "+"
+                                                                                : "-"}
+                                                                            {formatIDR(
+                                                                                tx.amount,
+                                                                            )}
                                                                         </span>
 
                                                                         <div className="flex items-center gap-1.5 transition-opacity">
                                                                             <button
-                                                                                onClick={() => handleOpenEdit(tx)}
+                                                                                onClick={() =>
+                                                                                    handleOpenEdit(
+                                                                                        tx,
+                                                                                    )
+                                                                                }
                                                                                 className="p-2 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
                                                                                 title="Ubah Transaksi"
                                                                             >
                                                                                 <Edit className="w-4 h-4" />
                                                                             </button>
                                                                             <button
-                                                                                onClick={() => handleDeleteTransaction(tx.id, tx.type, tx.amount, tx.walletId)}
+                                                                                onClick={() =>
+                                                                                    handleDeleteTransaction(
+                                                                                        tx.id,
+                                                                                        tx.type,
+                                                                                        tx.amount,
+                                                                                        tx.walletId,
+                                                                                    )
+                                                                                }
                                                                                 className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
                                                                                 title="Hapus Transaksi"
                                                                             >
@@ -1487,14 +1848,25 @@ export default function App() {
                             ) : (
                                 /* HALAMAN INPUT TRANSAKSI BARU (MODERN & SIMPLE) */
                                 <div className="space-y-4 animate-fadeIn">
-                                    <form onSubmit={handleSaveBulkTransactions} className="space-y-4">
+                                    <form
+                                        onSubmit={handleSaveBulkTransactions}
+                                        className="space-y-4"
+                                    >
                                         {bulkTransactions.map((tx, idx) => (
-                                            <div key={tx.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative group transition-all hover:shadow-md">
+                                            <div
+                                                key={tx.id}
+                                                className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative group transition-all hover:shadow-md"
+                                            >
                                                 {/* Tombol Hapus Baris */}
-                                                {bulkTransactions.length > 1 && (
+                                                {bulkTransactions.length >
+                                                    1 && (
                                                     <button
                                                         type="button"
-                                                        onClick={() => handleRemoveBulkRow(idx)}
+                                                        onClick={() =>
+                                                            handleRemoveBulkRow(
+                                                                idx,
+                                                            )
+                                                        }
                                                         className="absolute -top-3 -right-3 w-8 h-8 bg-white border border-rose-100 rounded-full flex items-center justify-center text-rose-500 hover:bg-rose-50 hover:scale-110 shadow-sm transition-all z-10"
                                                         title="Hapus"
                                                     >
@@ -1507,85 +1879,189 @@ export default function App() {
                                                         <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-black shadow-sm">
                                                             {idx + 1}
                                                         </div>
-                                                        <span className="text-sm font-bold text-slate-700">Catatan Pengeluaran</span>
+                                                        <span className="text-sm font-bold text-slate-700">
+                                                            Catatan Pengeluaran
+                                                        </span>
                                                     </div>
-                                                    <span className="text-xs text-slate-400 font-medium">{idx + 1} dari {bulkTransactions.length}</span>
+                                                    <span className="text-xs text-slate-400 font-medium">
+                                                        {idx + 1} dari{" "}
+                                                        {
+                                                            bulkTransactions.length
+                                                        }
+                                                    </span>
                                                 </div>
 
                                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                                     {/* 1. Nominal (Paling atas sesuai request) */}
                                                     <div className="md:col-span-2">
-                                                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Nominal</label>
+                                                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                                                            Nominal
+                                                        </label>
                                                         <div className="relative">
                                                             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                                                <span className="text-slate-500 font-bold text-lg">Rp</span>
+                                                                <span className="text-slate-500 font-bold text-lg">
+                                                                    Rp
+                                                                </span>
                                                             </div>
                                                             <input
                                                                 type="text"
                                                                 inputMode="numeric"
                                                                 placeholder="0"
-                                                                value={tx.amount ? new Intl.NumberFormat('id-ID').format(tx.amount) : ''}
-                                                                onChange={(e) => {
-                                                                    const rawValue = e.target.value.replace(/\D/g, "");
-                                                                    handleUpdateBulkField(idx, "amount", rawValue ? parseInt(rawValue, 10) : "");
+                                                                value={
+                                                                    tx.amount
+                                                                        ? new Intl.NumberFormat(
+                                                                              "id-ID",
+                                                                          ).format(
+                                                                              tx.amount,
+                                                                          )
+                                                                        : ""
+                                                                }
+                                                                onChange={(
+                                                                    e,
+                                                                ) => {
+                                                                    const rawValue =
+                                                                        e.target.value.replace(
+                                                                            /\D/g,
+                                                                            "",
+                                                                        );
+                                                                    handleUpdateBulkField(
+                                                                        idx,
+                                                                        "amount",
+                                                                        rawValue
+                                                                            ? parseInt(
+                                                                                  rawValue,
+                                                                                  10,
+                                                                              )
+                                                                            : "",
+                                                                    );
                                                                 }}
                                                                 className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 text-lg font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                                                                autoFocus={idx === 0}
+                                                                autoFocus={
+                                                                    idx === 0
+                                                                }
                                                             />
                                                         </div>
                                                     </div>
 
                                                     {/* Deskripsi (Kita tetap butuh untuk data transaksi) */}
                                                     <div className="md:col-span-2">
-                                                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Catatan / Deskripsi</label>
+                                                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                                                            Catatan / Deskripsi
+                                                        </label>
                                                         <input
                                                             type="text"
                                                             placeholder="Makan siang, bensin, dll..."
-                                                            value={tx.description}
-                                                            onChange={(e) => handleUpdateBulkField(idx, "description", e.target.value)}
+                                                            value={
+                                                                tx.description
+                                                            }
+                                                            onChange={(e) =>
+                                                                handleUpdateBulkField(
+                                                                    idx,
+                                                                    "description",
+                                                                    e.target
+                                                                        .value,
+                                                                )
+                                                            }
                                                             className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
                                                         />
                                                     </div>
 
                                                     {/* 2. Kategori */}
                                                     <div>
-                                                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Kategori</label>
+                                                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                                                            Kategori
+                                                        </label>
                                                         <div className="relative">
                                                             <select
-                                                                value={tx.categoryId}
-                                                                onChange={(e) => handleUpdateBulkField(idx, "categoryId", e.target.value)}
+                                                                value={
+                                                                    tx.categoryId
+                                                                }
+                                                                onChange={(e) =>
+                                                                    handleUpdateBulkField(
+                                                                        idx,
+                                                                        "categoryId",
+                                                                        e.target
+                                                                            .value,
+                                                                    )
+                                                                }
                                                                 className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
                                                             >
-                                                                {categories.map((c) => (
-                                                                    <option key={c.id} value={c.id}>{c.name}</option>
-                                                                ))}
+                                                                {categories.map(
+                                                                    (c) => (
+                                                                        <option
+                                                                            key={
+                                                                                c.id
+                                                                            }
+                                                                            value={
+                                                                                c.id
+                                                                            }
+                                                                        >
+                                                                            {
+                                                                                c.name
+                                                                            }
+                                                                        </option>
+                                                                    ),
+                                                                )}
                                                             </select>
                                                         </div>
                                                     </div>
 
                                                     {/* 3. Dompet */}
                                                     <div>
-                                                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Dompet / Sumber Dana</label>
+                                                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                                                            Dompet / Sumber Dana
+                                                        </label>
                                                         <div className="relative">
                                                             <select
-                                                                value={tx.walletId}
-                                                                onChange={(e) => handleUpdateBulkField(idx, "walletId", e.target.value)}
+                                                                value={
+                                                                    tx.walletId
+                                                                }
+                                                                onChange={(e) =>
+                                                                    handleUpdateBulkField(
+                                                                        idx,
+                                                                        "walletId",
+                                                                        e.target
+                                                                            .value,
+                                                                    )
+                                                                }
                                                                 className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
                                                             >
-                                                                {wallets.map((w) => (
-                                                                    <option key={w.id} value={w.id}>{w.name}</option>
-                                                                ))}
+                                                                {wallets.map(
+                                                                    (w) => (
+                                                                        <option
+                                                                            key={
+                                                                                w.id
+                                                                            }
+                                                                            value={
+                                                                                w.id
+                                                                            }
+                                                                        >
+                                                                            {
+                                                                                w.name
+                                                                            }
+                                                                        </option>
+                                                                    ),
+                                                                )}
                                                             </select>
                                                         </div>
                                                     </div>
 
                                                     {/* 4. Tanggal (Pilih bulan & tahun pop-up native) */}
                                                     <div className="md:col-span-2">
-                                                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">Tanggal</label>
+                                                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                                                            Tanggal
+                                                        </label>
                                                         <input
                                                             type="date"
                                                             value={tx.date}
-                                                            onChange={(e) => handleUpdateBulkField(idx, "date", e.target.value)}
+                                                            onChange={(e) =>
+                                                                handleUpdateBulkField(
+                                                                    idx,
+                                                                    "date",
+                                                                    e.target
+                                                                        .value,
+                                                                )
+                                                            }
                                                             className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
                                                         />
                                                     </div>
@@ -1868,14 +2344,18 @@ export default function App() {
                             {/* TAB TOGGLE (Top, Center, Rounded 50%) */}
                             <div className="flex justify-center mb-6">
                                 <div className="flex bg-slate-200/60 p-1.5 rounded-full w-full max-w-sm shadow-inner relative">
-                                    <button 
-                                        onClick={() => setActiveTab('budgeting')}
+                                    <button
+                                        onClick={() =>
+                                            setActiveTab("budgeting")
+                                        }
                                         className={`flex-1 px-4 py-2.5 rounded-full text-sm font-bold transition-all bg-white shadow-md text-blue-600`}
                                     >
                                         Budgeting
                                     </button>
-                                    <button 
-                                        onClick={() => setActiveTab('pencatatan')}
+                                    <button
+                                        onClick={() =>
+                                            setActiveTab("pencatatan")
+                                        }
                                         className={`flex-1 px-4 py-2.5 rounded-full text-sm font-bold transition-all text-slate-500 hover:text-slate-800`}
                                     >
                                         History Transaksi
@@ -1886,164 +2366,159 @@ export default function App() {
                             <div className="flex justify-end mb-4">
                                 <button
                                     onClick={() => {
-                                        setActiveTab('pencatatan');
+                                        setActiveTab("pencatatan");
                                         handleStartAddTransaction();
                                     }}
                                     className="px-4 py-2.5 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-700 transition-all text-sm flex items-center justify-center shadow-md shadow-blue-200 shrink-0"
                                 >
                                     <Plus className="w-4 h-4" />
-                                    <span className="ml-1.5">Catat Pengeluaran</span>
+                                    <span className="ml-1.5">
+                                        Catat Pengeluaran
+                                    </span>
                                 </button>
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {(() => {
-                                        let txs = transactions.filter(
-                                            (t) => t.type === "expense",
+                                {(() => {
+                                    let txs = transactions.filter(
+                                        (t) => t.type === "expense",
+                                    );
+                                    if (budgetStartDate)
+                                        txs = txs.filter(
+                                            (t) => t.date >= budgetStartDate,
                                         );
-                                        if (budgetStartDate)
-                                            txs = txs.filter(
-                                                (t) =>
-                                                    t.date >= budgetStartDate,
-                                            );
-                                        if (budgetEndDate)
-                                            txs = txs.filter(
-                                                (t) => t.date <= budgetEndDate,
-                                            );
+                                    if (budgetEndDate)
+                                        txs = txs.filter(
+                                            (t) => t.date <= budgetEndDate,
+                                        );
 
-                                        const stats = categories
-                                            .map((cat) => {
-                                                const spent = txs
-                                                    .filter(
-                                                        (t) =>
-                                                            t.categoryId ===
-                                                            cat.id,
-                                                    )
-                                                    .reduce(
-                                                        (sum, t) =>
-                                                            sum + t.amount,
-                                                        0,
-                                                    );
-                                                const percentage =
-                                                    cat.budget > 0
-                                                        ? Math.min(
-                                                              (spent /
-                                                                  cat.budget) *
-                                                                  100,
+                                    const stats = categories
+                                        .map((cat) => {
+                                            const spent = txs
+                                                .filter(
+                                                    (t) =>
+                                                        t.categoryId === cat.id,
+                                                )
+                                                .reduce(
+                                                    (sum, t) => sum + t.amount,
+                                                    0,
+                                                );
+                                            const percentage =
+                                                cat.budget > 0
+                                                    ? Math.min(
+                                                          (spent / cat.budget) *
                                                               100,
-                                                          )
-                                                        : 0;
-                                                return {
-                                                    ...cat,
-                                                    spent,
-                                                    percentage,
-                                                };
-                                            })
-                                            .sort((a, b) => b.spent - a.spent);
-
-                                        return stats.map((cat) => {
-                                            const iconMap = {
-                                                Utensils,
-                                                Car,
-                                                FileText,
-                                                Tv,
-                                                HeartPulse,
-                                                Grid,
+                                                          100,
+                                                      )
+                                                    : 0;
+                                            return {
+                                                ...cat,
+                                                spent,
+                                                percentage,
                                             };
-                                            const IconComponent =
-                                                cat.icon && iconMap[cat.icon]
-                                                    ? iconMap[cat.icon]
-                                                    : Grid;
+                                        })
+                                        .sort((a, b) => b.spent - a.spent);
 
-                                            const isOverBudget =
-                                                cat.spent > cat.budget;
-                                            const isWarning =
-                                                !isOverBudget &&
-                                                cat.percentage > 80;
+                                    return stats.map((cat) => {
+                                        const IconComponent =
+                                            cat.icon && ICON_MAP[cat.icon]
+                                                ? ICON_MAP[cat.icon]
+                                                : Grid;
 
-                                            let barColor = "bg-blue-500";
-                                            if (isOverBudget)
-                                                barColor = "bg-rose-500";
-                                            else if (isWarning)
-                                                barColor = "bg-amber-500";
-                                            else if (cat.color)
-                                                barColor = cat.color;
+                                        const isOverBudget =
+                                            cat.spent > cat.budget;
+                                        const isWarning =
+                                            !isOverBudget &&
+                                            cat.percentage > 80;
 
-                                            const borderColor = cat.color ? cat.color.replace("bg-", "border-") : "border-slate-200";
+                                        let barColor = "bg-blue-500";
+                                        if (isOverBudget)
+                                            barColor = "bg-rose-500";
+                                        else if (isWarning)
+                                            barColor = "bg-amber-500";
+                                        else if (cat.color)
+                                            barColor = cat.color;
 
-                                            return (
-                                                <div
-                                                    key={cat.id}
-                                                    className={`p-5 rounded-2xl border-2 ${borderColor} bg-white shadow-sm hover:shadow-md transition-all`}
-                                                >
-                                                    <div className="flex items-center justify-between mb-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div
-                                                                className={`w-9 h-9 rounded-xl flex items-center justify-center ${cat.color ? cat.color.replace("-500", "-100") : "bg-slate-100"}`}
-                                                            >
-                                                                <IconComponent
-                                                                    className={`w-4 h-4 ${cat.color ? cat.color.replace("bg-", "text-").replace("-500", "-600") : "text-slate-500"}`}
-                                                                />
-                                                            </div>
-                                                            <div>
-                                                                <h4 className="text-sm font-bold text-slate-800">
-                                                                    {cat.name}
-                                                                </h4>
-                                                                <p className="text-[10px] font-semibold text-slate-400">
-                                                                    Plafon:{" "}
-                                                                    {formatIDR(
-                                                                        cat.budget,
-                                                                    )}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                        <div className="text-right flex flex-col items-end">
-                                                            <span
-                                                                className={`text-sm font-black ${isOverBudget ? "text-rose-600" : "text-slate-800"}`}
-                                                            >
-                                                                {formatIDR(
-                                                                    cat.spent,
-                                                                )}
-                                                            </span>
-                                                            <span className="text-[10px] font-bold text-slate-400 mt-0.5">
-                                                                Terpakai
-                                                            </span>
-                                                        </div>
-                                                    </div>
+                                        const borderColor = cat.color
+                                            ? cat.color.replace(
+                                                  "bg-",
+                                                  "border-",
+                                              )
+                                            : "border-slate-200";
 
-                                                    <div className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                                        return (
+                                            <div
+                                                key={cat.id}
+                                                className={`p-5 rounded-2xl border-2 ${borderColor} bg-white shadow-sm hover:shadow-md transition-all`}
+                                            >
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <div className="flex items-center gap-3">
                                                         <div
-                                                            className={`h-full rounded-full ${barColor} transition-all duration-700`}
-                                                            style={{
-                                                                width: `${Math.max(cat.percentage, 2)}%`,
-                                                            }}
-                                                        />
+                                                            className={`w-9 h-9 rounded-xl flex items-center justify-center ${cat.color ? cat.color.replace("-500", "-100") : "bg-slate-100"}`}
+                                                        >
+                                                            <IconComponent
+                                                                className={`w-4 h-4 ${cat.color ? cat.color.replace("bg-", "text-").replace("-500", "-600") : "text-slate-500"}`}
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-bold text-slate-800">
+                                                                {cat.name}
+                                                            </h4>
+                                                            <p className="text-[10px] font-semibold text-slate-400">
+                                                                Plafon:{" "}
+                                                                {formatIDR(
+                                                                    cat.budget,
+                                                                )}
+                                                            </p>
+                                                        </div>
                                                     </div>
-
-                                                    <div className="flex justify-between items-center mt-2.5">
+                                                    <div className="text-right flex flex-col items-end">
                                                         <span
-                                                            className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${isOverBudget ? "bg-rose-100 text-rose-600" : isWarning ? "bg-amber-100 text-amber-600" : "bg-slate-200 text-slate-600"}`}
+                                                            className={`text-sm font-black ${isOverBudget ? "text-rose-600" : "text-slate-800"}`}
                                                         >
-                                                            {isOverBudget
-                                                                ? "Over budget!"
-                                                                : isWarning
-                                                                  ? "Hampir habis"
-                                                                  : "Aman"}
-                                                        </span>
-                                                        <span
-                                                            className={`text-xs font-bold ${isOverBudget ? "text-rose-600" : "text-slate-600"}`}
-                                                        >
-                                                            {cat.percentage.toFixed(
-                                                                0,
+                                                            {formatIDR(
+                                                                cat.spent,
                                                             )}
-                                                            %
+                                                        </span>
+                                                        <span className="text-[10px] font-bold text-slate-400 mt-0.5">
+                                                            Terpakai
                                                         </span>
                                                     </div>
                                                 </div>
-                                            );
-                                        });
-                                    })()}
-                                </div>
+
+                                                <div className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                                                    <div
+                                                        className={`h-full rounded-full ${barColor} transition-all duration-700`}
+                                                        style={{
+                                                            width: `${Math.max(cat.percentage, 2)}%`,
+                                                        }}
+                                                    />
+                                                </div>
+
+                                                <div className="flex justify-between items-center mt-2.5">
+                                                    <span
+                                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${isOverBudget ? "bg-rose-100 text-rose-600" : isWarning ? "bg-amber-100 text-amber-600" : "bg-slate-200 text-slate-600"}`}
+                                                    >
+                                                        {isOverBudget
+                                                            ? "Over budget!"
+                                                            : isWarning
+                                                              ? "Hampir habis"
+                                                              : "Aman"}
+                                                    </span>
+                                                    <span
+                                                        className={`text-xs font-bold ${isOverBudget ? "text-rose-600" : "text-slate-600"}`}
+                                                    >
+                                                        {cat.percentage.toFixed(
+                                                            0,
+                                                        )}
+                                                        %
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        );
+                                    });
+                                })()}
+                            </div>
                         </div>
                     )}
 
@@ -2051,12 +2526,14 @@ export default function App() {
                     {activeTab === "dompet" && (
                         <div className="space-y-6 animate-fadeIn">
                             <div className="flex items-center justify-between mb-2">
-                                <h3 className="font-bold text-lg text-slate-900">Kantong Keuangan</h3>
+                                <h3 className="font-bold text-lg text-slate-900">
+                                    Kantong Keuangan
+                                </h3>
                                 <button className="text-xs font-bold text-blue-600 bg-blue-50 px-4 py-2 rounded-lg hover:bg-blue-100 transition-colors flex items-center gap-1">
                                     <Plus className="w-3 h-3" /> Top Up Saldo
                                 </button>
                             </div>
-                            
+
                             {/* Card Kantong Slider */}
                             <div className="flex overflow-x-auto snap-x snap-mandatory gap-4 pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:gap-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                                 {wallets.map((w, index) => {
@@ -2065,10 +2542,11 @@ export default function App() {
                                         "from-emerald-500 to-teal-700",
                                         "from-rose-500 to-pink-700",
                                         "from-amber-500 to-orange-700",
-                                        "from-purple-600 to-violet-800"
+                                        "from-purple-600 to-violet-800",
                                     ];
-                                    const bgGradient = gradients[index % gradients.length];
-                                    
+                                    const bgGradient =
+                                        gradients[index % gradients.length];
+
                                     return (
                                         <div
                                             key={w.id}
@@ -2076,7 +2554,7 @@ export default function App() {
                                         >
                                             <div className="absolute -right-4 -top-4 w-24 h-24 bg-white/10 rounded-full blur-2xl"></div>
                                             <div className="absolute -left-4 -bottom-4 w-20 h-20 bg-black/10 rounded-full blur-xl"></div>
-                                            
+
                                             <div className="relative z-10 flex justify-between items-start mb-4">
                                                 <div>
                                                     <span className="text-[10px] font-bold tracking-widest text-white/70 uppercase">
@@ -2090,7 +2568,7 @@ export default function App() {
                                                     <Wallet className="w-5 h-5 text-white" />
                                                 </div>
                                             </div>
-                                            
+
                                             <div className="relative z-10 mt-auto">
                                                 <p className="text-xs text-white/70 font-medium mb-1">
                                                     Saldo Saat Ini
@@ -2196,11 +2674,21 @@ export default function App() {
                                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-6">
                                         <div className="p-5 sm:p-6 flex items-center space-x-4 border-b border-slate-100">
                                             <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-2xl shadow-sm shrink-0">
-                                                {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
+                                                {currentUser?.name
+                                                    ? currentUser.name
+                                                          .charAt(0)
+                                                          .toUpperCase()
+                                                    : "U"}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <h2 className="text-lg font-bold text-slate-900 truncate">{currentUser?.name || "User"}</h2>
-                                                <p className="text-sm text-slate-500 truncate">{currentUser?.email || "user@example.com"}</p>
+                                                <h2 className="text-lg font-bold text-slate-900 truncate">
+                                                    {currentUser?.name ||
+                                                        "User"}
+                                                </h2>
+                                                <p className="text-sm text-slate-500 truncate">
+                                                    {currentUser?.email ||
+                                                        "user@example.com"}
+                                                </p>
                                             </div>
                                             <button className="text-blue-600 hover:text-blue-700 bg-blue-50 p-2 rounded-xl transition-colors">
                                                 <Edit className="w-4 h-4" />
@@ -2212,65 +2700,114 @@ export default function App() {
                                                     <Wallet className="w-5 h-5" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-xs font-bold text-slate-500 uppercase">Total Saldo</p>
+                                                    <p className="text-xs font-bold text-slate-500 uppercase">
+                                                        Total Saldo
+                                                    </p>
                                                     <p className="text-base font-black text-slate-900">
-                                                        Rp {new Intl.NumberFormat('id-ID').format(
-                                                            wallets.reduce((sum, w) => sum + parseFloat(w.balance || 0), 0)
+                                                        Rp{" "}
+                                                        {new Intl.NumberFormat(
+                                                            "id-ID",
+                                                        ).format(
+                                                            wallets.reduce(
+                                                                (sum, w) =>
+                                                                    sum +
+                                                                    parseFloat(
+                                                                        w.balance ||
+                                                                            0,
+                                                                    ),
+                                                                0,
+                                                            ),
                                                         )}
                                                     </p>
                                                 </div>
                                             </div>
-                                            <button 
-                                                onClick={() => setActiveTab('dompet')}
+                                            <button
+                                                onClick={() =>
+                                                    setActiveTab("dompet")
+                                                }
                                                 className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center"
                                             >
-                                                Kelola <ChevronRight className="w-4 h-4 ml-0.5" />
+                                                Kelola{" "}
+                                                <ChevronRight className="w-4 h-4 ml-0.5" />
                                             </button>
                                         </div>
                                     </div>
 
                                     {/* Menu List */}
                                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                                        <button 
-                                            onClick={() => setActiveSettingsTab("kategori")}
-                                            className="w-full flex items-center justify-between p-4 hover:bg-slate-50 border-b border-slate-100 transition-colors"
-                                        >
-                                            <div className="flex items-center space-x-4">
-                                                <Tag className="w-5 h-5 text-slate-400" />
-                                                <span className="text-sm font-bold text-slate-700">Manajemen Kategori</span>
-                                            </div>
-                                            <ChevronRight className="w-4 h-4 text-slate-300" />
-                                        </button>
+                                        {hasPermission("kelola_kategori") && (
+                                            <button
+                                                onClick={() =>
+                                                    setActiveSettingsTab("kategori")
+                                                }
+                                                className="w-full flex items-center justify-between p-4 hover:bg-slate-50 border-b border-slate-100 transition-colors"
+                                            >
+                                                <div className="flex items-center space-x-4">
+                                                    <Tag className="w-5 h-5 text-slate-400" />
+                                                    <span className="text-sm font-bold text-slate-700">
+                                                        Manajemen Kategori
+                                                    </span>
+                                                </div>
+                                                <ChevronRight className="w-4 h-4 text-slate-300" />
+                                            </button>
+                                        )}
 
-                                        <button 
-                                            onClick={() => alert("Fitur Keamanan akan segera hadir!")}
+                                        <button
+                                            onClick={() =>
+                                                alert(
+                                                    "Fitur Keamanan akan segera hadir!",
+                                                )
+                                            }
                                             className="w-full flex items-center justify-between p-4 hover:bg-slate-50 border-b border-slate-100 transition-colors"
                                         >
                                             <div className="flex items-center space-x-4">
                                                 <Shield className="w-5 h-5 text-slate-400" />
-                                                <span className="text-sm font-bold text-slate-700">Keamanan & Akun</span>
+                                                <span className="text-sm font-bold text-slate-700">
+                                                    Keamanan & Akun
+                                                </span>
                                             </div>
                                             <ChevronRight className="w-4 h-4 text-slate-300" />
                                         </button>
 
-                                        <button 
-                                            onClick={() => alert("Fitur Log Activity akan segera hadir!")}
+                                        {hasPermission("kelola_anggota") && (
+                                            <button
+                                                onClick={() =>
+                                                    setActiveSettingsTab("anggota")
+                                                }
+                                                className="w-full flex items-center justify-between p-4 hover:bg-slate-50 border-b border-slate-100 transition-colors"
+                                            >
+                                                <div className="flex items-center space-x-4">
+                                                    <Users className="w-5 h-5 text-slate-400" />
+                                                    <span className="text-sm font-bold text-slate-700">
+                                                        Manajemen Anggota
+                                                    </span>
+                                                </div>
+                                                <ChevronRight className="w-4 h-4 text-slate-300" />
+                                            </button>
+                                        )}
+
+                                        <button
+                                            onClick={() => setActiveSettingsTab("logs")}
                                             className="w-full flex items-center justify-between p-4 hover:bg-slate-50 border-b border-slate-100 transition-colors"
                                         >
                                             <div className="flex items-center space-x-4">
                                                 <Activity className="w-5 h-5 text-slate-400" />
-                                                <span className="text-sm font-bold text-slate-700">Log Aktivitas</span>
+                                                <span className="text-sm font-bold text-slate-700">
+                                                    Log Aktivitas
+                                                </span>
                                             </div>
                                             <ChevronRight className="w-4 h-4 text-slate-300" />
                                         </button>
 
-                                        <button 
+                                        <button
                                             onClick={handleLogout}
                                             className="w-full flex items-center justify-between p-4 hover:bg-rose-50 transition-colors group"
                                         >
                                             <div className="flex items-center space-x-4">
                                                 <LogOut className="w-5 h-5 text-rose-500 group-hover:text-rose-600 transition-colors" />
-                                                <span className="text-sm font-bold text-rose-500 group-hover:text-rose-600 transition-colors">Keluar dari Akun</span>
+                                                <span className="text-sm font-bold text-rose-500 group-hover:text-rose-600 transition-colors">
+                                                    Keluar dari Akun
+                                                </span>
                                             </div>
                                         </button>
                                     </div>
@@ -2278,244 +2815,509 @@ export default function App() {
                             )}
 
                             {activeSettingsTab === "kategori" && (
-                                <div className="space-y-6">
-                                    <button 
-                                        onClick={() => setActiveSettingsTab("profile")}
-                                        className="flex items-center space-x-2 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors"
-                                    >
-                                        <ArrowLeft className="w-4 h-4" />
-                                        <span>Kembali ke Profile</span>
-                                    </button>
-                                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm animate-fadeIn">
-                                        <h3 className="font-bold text-base text-slate-900 mb-4">
-                                        Kategori Pengeluaran Saat Ini
-                                    </h3>
-                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
-                                        {categories.map((c) => (
-                                            <div
-                                                key={c.id}
-                                                className="p-4 rounded-xl border border-slate-100 flex items-center space-x-3 bg-slate-50/50"
-                                            >
-                                                <span
-                                                    className={`w-4 h-4 rounded-full ${c.color}`}
-                                                />
-                                                <div>
-                                                    <h4 className="font-bold text-sm text-slate-800">
-                                                        {c.name}
-                                                    </h4>
-                                                    <span className="text-[10px] text-slate-400 font-bold">
-                                                        Limit:{" "}
-                                                        {formatIDR(c.budget)}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    <div className="border-t border-slate-100 pt-6">
-                                        <h4 className="font-bold text-slate-900 text-sm mb-3">
-                                            Buat Kategori Baru
-                                        </h4>
-                                        <form
-                                            onSubmit={handleAddCategory}
-                                            className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end"
+                                <div className="space-y-6 animate-fadeIn">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                        <button
+                                            onClick={() =>
+                                                setActiveSettingsTab("profile")
+                                            }
+                                            className="flex items-center space-x-2 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors w-fit"
                                         >
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
-                                                    Nama Kategori
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Contoh: Pendidikan Anak"
-                                                    value={newCat.name}
-                                                    onChange={(e) =>
-                                                        setNewCat({
-                                                            ...newCat,
-                                                            name: e.target
-                                                                .value,
-                                                        })
-                                                    }
-                                                    className="w-full px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-900"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
-                                                    Anggaran Bulanan awal
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    placeholder="0"
-                                                    value={newCat.budget}
-                                                    onChange={(e) =>
-                                                        setNewCat({
-                                                            ...newCat,
-                                                            budget: e.target
-                                                                .value,
-                                                        })
-                                                    }
-                                                    className="w-full px-4 py-2 rounded-xl border border-slate-200 text-sm text-slate-900"
-                                                />
-                                            </div>
-                                            <button
-                                                type="submit"
-                                                className="w-full py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-100"
-                                            >
-                                                Tambahkan Kategori
-                                            </button>
-                                        </form>
+                                            <ArrowLeft className="w-4 h-4" />
+                                            <span>Kembali ke Profile</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setNewCat({
+                                                    id: null,
+                                                    name: "",
+                                                    budget: "",
+                                                    icon: "Grid",
+                                                    color: "bg-blue-500",
+                                                });
+                                                setShowAddCategoryModal(true);
+                                            }}
+                                            className="px-4 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-md shadow-blue-100 flex items-center justify-center space-x-2"
+                                        >
+                                            <Plus className="w-4 h-4" />
+                                            <span>Tambah Kategori</span>
+                                        </button>
                                     </div>
-                                </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {/* TAB 6: ANGGOTA KELUARGA */}
-                    {activeTab === "anggota" && (
-                        <div className="space-y-6 animate-fadeIn">
-                            {/* Header + Tombol Tambah */}
-                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-                                    <div>
-                                        <h3 className="font-bold text-lg text-slate-900">
-                                            Manajemen Anggota Keluarga
+                                    <div className="mb-4 pt-2">
+                                        <h3 className="font-bold text-lg text-slate-900 mb-1">
+                                            Kategori Pengeluaran
                                         </h3>
-                                        <p className="text-xs text-slate-500 mt-1">
-                                            Kelola anggota keluarga beserta hak
-                                            akses masing-masing pengguna.
+                                        <p className="text-xs text-slate-500">
+                                            Data berdasarkan bulan{" "}
+                                            {
+                                                [
+                                                    "Januari",
+                                                    "Februari",
+                                                    "Maret",
+                                                    "April",
+                                                    "Mei",
+                                                    "Juni",
+                                                    "Juli",
+                                                    "Agustus",
+                                                    "September",
+                                                    "Oktober",
+                                                    "November",
+                                                    "Desember",
+                                                ][selectedMonth - 1]
+                                            }{" "}
+                                            {selectedYear}.
                                         </p>
                                     </div>
-                                    <button
-                                        onClick={() => {
-                                            setNewMember({
-                                                name: "",
-                                                role: "Anggota",
-                                                permissions: [
-                                                    ...ROLE_PERMISSIONS[
-                                                        "Anggota"
-                                                    ],
-                                                ],
-                                            });
-                                            setShowAddMemberModal(true);
-                                        }}
-                                        className="px-5 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all text-sm flex items-center justify-center space-x-2 shadow-md shadow-blue-100 self-start sm:self-center"
-                                    >
-                                        <UserPlus className="w-4 h-4" />
-                                        <span>Tambah Anggota</span>
-                                    </button>
-                                </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-5">
+                                        {categories.map((c) => {
+                                            const spent =
+                                                expenseByCategoryForSelectedMonth[
+                                                    c.id
+                                                ] || 0;
+                                            const percentage =
+                                                c.budget > 0
+                                                    ? Math.min(
+                                                          (spent / c.budget) *
+                                                              100,
+                                                          100,
+                                                      )
+                                                    : 0;
+                                            let IconComp = Grid;
+                                            if (c.icon === "Utensils")
+                                                IconComp = Utensils;
+                                            if (c.icon === "Car")
+                                                IconComp = Car;
+                                            if (c.icon === "FileText")
+                                                IconComp = FileText;
+                                            if (c.icon === "Tv") IconComp = Tv;
+                                            if (c.icon === "HeartPulse")
+                                                IconComp = HeartPulse;
 
-                                {/* Daftar Anggota */}
-                                <div className="space-y-4">
-                                    {members.map((m) => (
-                                        <div
-                                            key={m.id}
-                                            className="p-5 rounded-xl border border-slate-200 bg-white hover:border-slate-300 transition-all"
-                                        >
-                                            <div className="flex items-center justify-between mb-4">
-                                                <div className="flex items-center space-x-3">
-                                                    <span
-                                                        className={`w-11 h-11 rounded-full flex items-center justify-center text-sm font-bold text-white shadow-sm ${m.avatarColor}`}
-                                                    >
-                                                        {m.name.charAt(0)}
-                                                    </span>
+                                            return (
+                                                <div
+                                                    key={c.id}
+                                                    className="p-5 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.1)] hover:border-blue-100 transition-all duration-300 group flex flex-col justify-between"
+                                                >
+                                                    <div className="flex items-start justify-between mb-5">
+                                                        <div className="flex items-center space-x-3">
+                                                            <div
+                                                                className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-sm ${c.color}`}
+                                                            >
+                                                                <IconComp className="w-6 h-6" />
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-bold text-sm text-slate-800 line-clamp-1">
+                                                                    {c.name}
+                                                                </h4>
+                                                                <span className="text-[11px] text-slate-500 font-semibold block mt-0.5">
+                                                                    Limit:{" "}
+                                                                    {formatIDR(
+                                                                        c.budget,
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center space-x-1.5 md:opacity-0 md:group-hover:opacity-100 transition-all">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setNewCat({
+                                                                        id: c.id,
+                                                                        name: c.name,
+                                                                        budget: c.budget.toString(),
+                                                                        icon:
+                                                                            c.icon ||
+                                                                            "Grid",
+                                                                        color:
+                                                                            c.color ||
+                                                                            "bg-blue-500",
+                                                                    });
+                                                                    setShowAddCategoryModal(
+                                                                        true,
+                                                                    );
+                                                                }}
+                                                                className="w-8 h-8 flex flex-shrink-0 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 shadow-sm transition-all"
+                                                            >
+                                                                <Edit className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() =>
+                                                                    handleDeleteCategory(
+                                                                        c.id,
+                                                                    )
+                                                                }
+                                                                className="w-8 h-8 flex flex-shrink-0 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 shadow-sm transition-all"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
                                                     <div>
-                                                        <h4 className="font-bold text-sm text-slate-900">
-                                                            {m.name}
-                                                        </h4>
-                                                        <div className="flex items-center gap-2 mt-0.5">
-                                                            <span className="text-xs text-slate-500">
-                                                                {m.role}
+                                                        <div className="flex justify-between items-end mb-2 font-bold">
+                                                            <div>
+                                                                <span className="text-[10px] uppercase tracking-wider text-slate-400 block mb-0.5">
+                                                                    Terpakai
+                                                                </span>
+                                                                <span
+                                                                    className={`text-sm ${percentage >= 100 ? "text-rose-600" : "text-slate-800"}`}
+                                                                >
+                                                                    {formatIDR(
+                                                                        spent,
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                            <span
+                                                                className={`text-xs ${percentage >= 100 ? "text-rose-500" : "text-blue-600"}`}
+                                                            >
+                                                                {percentage.toFixed(
+                                                                    0,
+                                                                )}
+                                                                %
                                                             </span>
-                                                            <span className="bg-blue-50 text-blue-600 text-[9px] px-2 py-0.5 rounded-full font-bold">
-                                                                Aktif
-                                                            </span>
+                                                        </div>
+                                                        <div className="w-full bg-slate-100/80 rounded-full h-2 overflow-hidden shadow-inner">
+                                                            <div
+                                                                className={`h-2 rounded-full transition-all duration-500 ${percentage >= 100 ? "bg-rose-500 shadow-rose-200" : "bg-blue-500 shadow-blue-200"} shadow-[0_0_8px_rgba(0,0,0,0.2)]`}
+                                                                style={{
+                                                                    width: `${percentage}%`,
+                                                                }}
+                                                            />
                                                         </div>
                                                     </div>
                                                 </div>
-                                                <div className="hidden sm:flex items-center gap-1.5">
-                                                    <Shield className="w-4 h-4 text-slate-400" />
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                                        {
-                                                            (
-                                                                m.permissions ||
-                                                                []
-                                                            ).length
-                                                        }{" "}
-                                                        Hak Akses
+                                            );
+                                        })}
+                                    </div>
+
+                                    {showAddCategoryModal && (
+                                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn">
+                                            <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                                                <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                                                    <h3 className="font-bold text-lg text-slate-800">
+                                                        {newCat.id
+                                                            ? "Edit Kategori"
+                                                            : "Tambah Kategori"}
+                                                    </h3>
+                                                    <button
+                                                        onClick={() =>
+                                                            setShowAddCategoryModal(
+                                                                false,
+                                                            )
+                                                        }
+                                                        className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors"
+                                                    >
+                                                        <X className="w-5 h-5" />
+                                                    </button>
+                                                </div>
+
+                                                <form
+                                                    onSubmit={handleAddCategory}
+                                                    className="p-6 overflow-y-auto"
+                                                >
+                                                    <div className="space-y-5">
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
+                                                                Nama Kategori
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Contoh: Pendidikan Anak"
+                                                                value={
+                                                                    newCat.name
+                                                                }
+                                                                onChange={(e) =>
+                                                                    setNewCat({
+                                                                        ...newCat,
+                                                                        name: e
+                                                                            .target
+                                                                            .value,
+                                                                    })
+                                                                }
+                                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
+                                                                required
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
+                                                                Anggaran Bulanan
+                                                                (Limit)
+                                                            </label>
+                                                            <div className="relative">
+                                                                <input
+                                                                    type="text"
+                                                                    placeholder={
+                                                                        newCat.id
+                                                                            ? "Budget bulan lalu"
+                                                                            : "Rp 0"
+                                                                    }
+                                                                    value={
+                                                                        newCat.budget
+                                                                            ? formatIDR(
+                                                                                  newCat.budget,
+                                                                              )
+                                                                            : ""
+                                                                    }
+                                                                    onChange={(
+                                                                        e,
+                                                                    ) => {
+                                                                        const val =
+                                                                            e.target.value.replace(
+                                                                                /[^0-9]/g,
+                                                                                "",
+                                                                            );
+                                                                        setNewCat(
+                                                                            {
+                                                                                ...newCat,
+                                                                                budget: val,
+                                                                            },
+                                                                        );
+                                                                    }}
+                                                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
+                                                                    required
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
+                                                                Warna Kategori
+                                                            </label>
+                                                            <div className="flex flex-wrap gap-3">
+                                                                {[
+                                                                    "bg-blue-500",
+                                                                    "bg-emerald-500",
+                                                                    "bg-rose-500",
+                                                                    "bg-orange-500",
+                                                                    "bg-purple-500",
+                                                                    "bg-slate-800",
+                                                                ].map(
+                                                                    (color) => (
+                                                                        <button
+                                                                            key={
+                                                                                color
+                                                                            }
+                                                                            type="button"
+                                                                            onClick={() =>
+                                                                                setNewCat(
+                                                                                    {
+                                                                                        ...newCat,
+                                                                                        color,
+                                                                                    },
+                                                                                )
+                                                                            }
+                                                                            className={`w-10 h-10 rounded-full ${color} shadow-sm border-4 transition-all ${newCat.color === color ? "border-white ring-2 ring-blue-500 scale-110" : "border-transparent opacity-80 hover:opacity-100"}`}
+                                                                        />
+                                                                    ),
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
+                                                                Ikon
+                                                            </label>
+                                                            <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
+                                                                {Object.keys(ICON_MAP).map(
+                                                                    (name) => {
+                                                                        const Icon = ICON_MAP[name];
+                                                                        return (
+                                                                        <button
+                                                                            key={
+                                                                                name
+                                                                            }
+                                                                            type="button"
+                                                                            onClick={() =>
+                                                                                setNewCat(
+                                                                                    {
+                                                                                        ...newCat,
+                                                                                        icon: name,
+                                                                                    },
+                                                                                )
+                                                                            }
+                                                                            className={`flex items-center justify-center p-3 rounded-xl border transition-all ${newCat.icon === name ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100"}`}
+                                                                        >
+                                                                            <Icon className="w-5 h-5" />
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="mt-8">
+                                                        <button
+                                                            type="submit"
+                                                            className="w-full py-3.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-[0.98]"
+                                                        >
+                                                            {newCat.id
+                                                                ? "Simpan Perubahan"
+                                                                : "Tambahkan Kategori"}
+                                                        </button>
+                                                    </div>
+                                                </form>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+
+                            {/* TAB 6: ANGGOTA KELUARGA (SETTINGS) */}
+                            {activeSettingsTab === "anggota" && (
+                                <div className="space-y-6 animate-fadeIn">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                        <button
+                                            onClick={() =>
+                                                setActiveSettingsTab("profile")
+                                            }
+                                            className="flex items-center space-x-2 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors w-fit"
+                                        >
+                                            <ArrowLeft className="w-4 h-4" />
+                                            <span>Kembali ke Profile</span>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setNewMember({
+                                                    id: null,
+                                                    name: "",
+                                                    role: "Anggota",
+                                                    permissions: [
+                                                        ...ROLE_PERMISSIONS[
+                                                            "Anggota"
+                                                        ],
+                                                    ],
+                                                });
+                                                setShowAddMemberModal(true);
+                                            }}
+                                            className="px-5 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-all text-sm flex items-center justify-center space-x-2 shadow-md shadow-blue-100 self-start sm:self-center"
+                                        >
+                                            <UserPlus className="w-4 h-4" />
+                                            <span>Tambah Anggota</span>
+                                        </button>
+                                    </div>
+                                    <div className="mb-4 pt-2">
+                                        <h3 className="font-bold text-lg text-slate-900 mb-1">
+                                            Manajemen Anggota Keluarga
+                                        </h3>
+                                        <p className="text-xs text-slate-500">
+                                            Kelola anggota keluarga beserta hak akses masing-masing pengguna.
+                                        </p>
+                                    </div>
+
+                                    {/* Daftar Anggota */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                                    {members.map((m) => (
+                                        <div
+                                            key={m.id}
+                                            className="p-5 rounded-2xl border border-slate-100 bg-white shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.1)] hover:border-blue-100 transition-all duration-300 group flex flex-col justify-between"
+                                        >
+                                            <div className="flex items-center space-x-4 mb-5">
+                                                <div
+                                                    className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white shadow-sm ${m.avatarColor}`}
+                                                >
+                                                    {m.name.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <h4 className="font-bold text-sm text-slate-900 line-clamp-1">
+                                                        {m.name}
+                                                    </h4>
+                                                    <span className="text-xs text-slate-500 block mt-0.5">
+                                                        {m.role}
                                                     </span>
                                                 </div>
                                             </div>
-
-                                            {/* Permission Checklist */}
-                                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-1.5">
-                                                    <Shield className="w-3.5 h-3.5" />{" "}
-                                                    Hak Akses & Permission
-                                                </p>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                                                    {AVAILABLE_PERMISSIONS.map(
-                                                        (perm) => {
-                                                            const hasPermission =
-                                                                (
-                                                                    m.permissions ||
-                                                                    []
-                                                                ).includes(
-                                                                    perm.key,
-                                                                );
-                                                            return (
-                                                                <label
-                                                                    key={
-                                                                        perm.key
-                                                                    }
-                                                                    className={`flex items-start gap-3 p-2.5 rounded-lg cursor-pointer transition-colors ${
-                                                                        hasPermission
-                                                                            ? "bg-blue-50/50"
-                                                                            : "hover:bg-white"
-                                                                    }`}
-                                                                >
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={
-                                                                            hasPermission
-                                                                        }
-                                                                        onChange={() =>
-                                                                            handleToggleMemberPermission(
-                                                                                m.id,
-                                                                                perm.key,
-                                                                            )
-                                                                        }
-                                                                        className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
-                                                                    />
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <p
-                                                                            className={`text-xs font-bold ${hasPermission ? "text-blue-700" : "text-slate-600"}`}
-                                                                        >
-                                                                            {
-                                                                                perm.label
-                                                                            }
-                                                                        </p>
-                                                                        <p className="text-[10px] text-slate-400 mt-0.5 leading-tight">
-                                                                            {
-                                                                                perm.desc
-                                                                            }
-                                                                        </p>
-                                                                    </div>
-                                                                </label>
-                                                            );
-                                                        },
-                                                    )}
+                                            
+                                            <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-auto">
+                                                <div className="flex items-center gap-1.5">
+                                                    <Shield className="w-4 h-4 text-blue-500" />
+                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                        {(m.permissions || []).length} Hak Akses
+                                                    </span>
+                                                </div>
+                                                <div className="flex items-center space-x-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                                                    <button 
+                                                        onClick={() => setSelectedMemberForDetail(m)}
+                                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all"
+                                                        title="Detail"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => {
+                                                            setNewMember({
+                                                                id: m.id,
+                                                                name: m.name,
+                                                                role: m.role,
+                                                                permissions: [...m.permissions]
+                                                            });
+                                                            setShowAddMemberModal(true);
+                                                        }}
+                                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all"
+                                                        title="Edit"
+                                                    >
+                                                        <Edit className="w-4 h-4" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => handleDeleteMember(m.id)}
+                                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all"
+                                                        title="Hapus"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
                                                 </div>
                                             </div>
                                         </div>
                                     ))}
                                 </div>
-                            </div>
 
-                            {/* Modal Tambah Anggota Baru */}
-                            {showAddMemberModal && (
-                                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                                    <div className="bg-white rounded-2xl border border-slate-150 max-w-lg w-full p-6 shadow-xl space-y-5 animate-scaleUp max-h-[90vh] overflow-y-auto">
+
+                            {/* Modal Detail Anggota */}
+                            {selectedMemberForDetail && createPortal(
+                                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fadeIn">
+                                    <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl p-6 animate-scaleUp">
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div className="flex items-center space-x-4">
+                                                <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold text-white shadow-sm ${selectedMemberForDetail.avatarColor}`}>
+                                                    {selectedMemberForDetail.name.charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <h3 className="font-bold text-lg text-slate-900">{selectedMemberForDetail.name}</h3>
+                                                    <p className="text-sm text-slate-500">{selectedMemberForDetail.role}</p>
+                                                    <p className="text-xs text-slate-400 mt-0.5">{selectedMemberForDetail.email}</p>
+                                                </div>
+                                            </div>
+                                            <button onClick={() => setSelectedMemberForDetail(null)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-xl transition-colors">
+                                                <X className="w-5 h-5" />
+                                            </button>
+                                        </div>
+                                        
+                                        <h4 className="font-bold text-sm text-slate-900 mb-3 flex items-center gap-2">
+                                            <Shield className="w-4 h-4 text-blue-500" />
+                                            Hak Akses Aktif:
+                                        </h4>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto pr-1">
+                                            {selectedMemberForDetail.permissions.length === 0 ? (
+                                                <p className="text-sm text-slate-500 italic col-span-1 sm:col-span-2">Tidak ada hak akses.</p>
+                                            ) : (
+                                                selectedMemberForDetail.permissions.map(permKey => {
+                                                    const permObj = AVAILABLE_PERMISSIONS.find(p => p.key === permKey);
+                                                    return (
+                                                        <div key={permKey} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                                                            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                                                            <div>
+                                                                <p className="text-sm font-bold text-slate-800">{permObj?.label || permKey}</p>
+                                                                <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">{permObj?.desc}</p>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            , document.body)}
+
+                            {/* Modal Tambah/Edit Anggota Baru */}
+                            {showAddMemberModal && createPortal(
+                                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+                                    <div className="bg-white rounded-2xl border border-slate-150 max-w-3xl w-full p-6 shadow-xl space-y-5 animate-scaleUp max-h-[90vh] overflow-y-auto">
                                         <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                                             <div className="flex items-center gap-3">
                                                 <div className="p-2 bg-blue-50 rounded-xl">
@@ -2523,12 +3325,12 @@ export default function App() {
                                                 </div>
                                                 <div>
                                                     <h3 className="font-bold text-slate-900 text-base">
-                                                        Tambah Anggota Baru
+                                                        {newMember.id ? "Edit Data Anggota" : "Tambah Anggota Baru"}
                                                     </h3>
                                                     <p className="text-[11px] text-slate-400">
-                                                        Daftarkan anggota
-                                                        keluarga baru beserta
-                                                        hak aksesnya
+                                                        {newMember.id 
+                                                            ? "Perbarui informasi dan hak akses anggota" 
+                                                            : "Daftarkan anggota keluarga baru beserta hak aksesnya"}
                                                     </p>
                                                 </div>
                                             </div>
@@ -2596,7 +3398,7 @@ export default function App() {
                                                     <Shield className="w-3.5 h-3.5 text-blue-600" />{" "}
                                                     Hak Akses & Permission
                                                 </label>
-                                                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-1">
+                                                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto">
                                                     {AVAILABLE_PERMISSIONS.map(
                                                         (perm) => {
                                                             const isChecked =
@@ -2670,9 +3472,95 @@ export default function App() {
                                         </form>
                                     </div>
                                 </div>
-                            )}
+                            , document.body)}
                         </div>
                     )}
+
+                    {/* TAB LOG AKTIVITAS (SETTINGS) */}
+                    {activeSettingsTab === "logs" && (
+                        <div className="space-y-6 animate-fadeIn">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <button
+                                    onClick={() => setActiveSettingsTab("profile")}
+                                    className="flex items-center space-x-2 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors w-fit"
+                                >
+                                    <ArrowLeft className="w-4 h-4" />
+                                    <span>Kembali ke Profile</span>
+                                </button>
+                                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl hidden sm:flex">
+                                    <Activity className="w-5 h-5" />
+                                </div>
+                            </div>
+                            
+                            <div className="mb-4 pt-2 border-b border-slate-100 pb-5">
+                                <h3 className="font-bold text-lg text-slate-900 mb-1">
+                                    Log Aktivitas Sistem
+                                </h3>
+                                <p className="text-xs text-slate-500">
+                                    Merekam seluruh aktivitas pengguna di dalam aplikasi untuk transparansi dan keamanan.
+                                </p>
+                            </div>
+
+                            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
+                                <div className="divide-y divide-slate-100">
+                                    {activityLogs.length === 0 && !isLoadingLogs ? (
+                                        <div className="text-center py-10">
+                                            <Activity className="w-8 h-8 text-slate-200 mx-auto mb-3" />
+                                            <p className="text-slate-500 text-sm font-bold">Belum ada aktivitas terekam.</p>
+                                        </div>
+                                    ) : (
+                                        activityLogs.map((log) => {
+                                            const logDate = new Date(log.date);
+                                            const isToday = logDate.toDateString() === new Date().toDateString();
+                                            const timeString = logDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                                            const dateString = logDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+
+                                            return (
+                                                <div key={log.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between gap-4">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm ${log.color}`}>
+                                                            {log.icon === 'User' && <User className="w-4 h-4" />}
+                                                            {log.icon === 'LogOut' && <LogOut className="w-4 h-4" />}
+                                                            {log.icon === 'PlusCircle' && <PlusCircle className="w-4 h-4" />}
+                                                            {log.icon === 'Edit' && <Edit className="w-4 h-4" />}
+                                                            {log.icon === 'Trash2' && <Trash2 className="w-4 h-4" />}
+                                                            {log.icon === 'Tag' && <Tag className="w-4 h-4" />}
+                                                            {log.icon === 'UserPlus' && <UserPlus className="w-4 h-4" />}
+                                                            {log.icon === 'UserMinus' && <UserMinus className="w-4 h-4" />}
+                                                            {log.icon === 'Activity' && <Activity className="w-4 h-4" />}
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-bold text-slate-900 line-clamp-1">{log.action}</h4>
+                                                            <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">{log.description}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right shrink-0">
+                                                        <div className="text-xs font-bold text-slate-700">{log.user?.name || 'Sistem'}</div>
+                                                        <div className="text-[10px] text-slate-400 mt-1">{isToday ? `Hari ini, ${timeString}` : `${dateString}`}</div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                                
+                                {/* Pagination Button */}
+                                {(hasMoreLogs || isLoadingLogs) && activityLogs.length > 0 && (
+                                    <div className="p-4 bg-slate-50 border-t border-slate-100 text-center">
+                                        <button 
+                                            onClick={() => fetchLogs(logsPage + 1)}
+                                            disabled={isLoadingLogs}
+                                            className="text-sm font-bold text-blue-600 hover:text-blue-700 disabled:opacity-50 transition-colors"
+                                        >
+                                            {isLoadingLogs ? 'Memuat Data...' : 'Muat Lebih Banyak'}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
                     {/* TAB 7: EKSPOR DATA */}
                     {activeTab === "export" && (
@@ -2733,59 +3621,92 @@ export default function App() {
 
             {/* === BOTTOM NAVIGATION BAR (MOBILE ONLY) === */}
             <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30 px-6 py-2 shadow-[0_-4px_25px_-5px_rgba(0,0,0,0.1)] flex justify-between items-center h-16">
-                
                 {/* KIRI */}
                 <div className="flex space-x-6">
-                    <button 
-                        onClick={() => { setActiveTab('dashboard'); setIsAddingTx(false); }} 
-                        className="flex flex-col items-center justify-center p-2 transition-transform active:scale-95"
-                    >
-                        <LayoutDashboard className={`w-6 h-6 ${activeTab === 'dashboard' ? "text-blue-600" : "text-slate-400"}`} />
-                    </button>
-                    <button 
-                        onClick={() => { setActiveTab('dompet'); setIsAddingTx(false); }} 
-                        className="flex flex-col items-center justify-center p-2 transition-transform active:scale-95"
-                    >
-                        <Wallet className={`w-6 h-6 ${activeTab === 'dompet' ? "text-blue-600" : "text-slate-400"}`} />
-                    </button>
+                    {hasPermission("lihat_laporan") && (
+                        <button
+                            onClick={() => {
+                                setActiveTab("dashboard");
+                                setIsAddingTx(false);
+                            }}
+                            className="flex flex-col items-center justify-center p-2 transition-transform active:scale-95"
+                        >
+                            <LayoutDashboard
+                                className={`w-6 h-6 ${activeTab === "dashboard" ? "text-blue-600" : "text-slate-400"}`}
+                            />
+                        </button>
+                    )}
+                    {hasPermission("kelola_dompet") && (
+                        <button
+                            onClick={() => {
+                                setActiveTab("dompet");
+                                setIsAddingTx(false);
+                            }}
+                            className="flex flex-col items-center justify-center p-2 transition-transform active:scale-95"
+                        >
+                            <Wallet
+                                className={`w-6 h-6 ${activeTab === "dompet" ? "text-blue-600" : "text-slate-400"}`}
+                            />
+                        </button>
+                    )}
                 </div>
 
                 {/* TENGAH (FAB - Floating Action Button) */}
-                <div className="relative -top-6">
-                    <button 
-                        onClick={() => {
-                            setActiveTab('pencatatan');
-                            handleStartAddTransaction();
-                        }}
-                        className="w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-300 hover:bg-blue-700 active:scale-95 transition-all border-4 border-slate-50"
-                    >
-                        <Plus className="w-7 h-7" />
-                    </button>
-                </div>
+                {hasPermission("catat_transaksi") && (
+                    <div className="relative -top-6">
+                        <button
+                            onClick={() => {
+                                setActiveTab("pencatatan");
+                                handleStartAddTransaction();
+                            }}
+                            className="w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-300 hover:bg-blue-700 active:scale-95 transition-all border-4 border-slate-50"
+                        >
+                            <Plus className="w-7 h-7" />
+                        </button>
+                    </div>
+                )}
 
                 {/* KANAN */}
                 <div className="flex space-x-6">
-                    <button 
-                        onClick={() => { setActiveTab('budgeting'); setIsAddingTx(false); }} 
+                    {hasPermission("atur_budget") && (
+                        <button
+                            onClick={() => {
+                                setActiveTab("budgeting");
+                                setIsAddingTx(false);
+                            }}
+                            className="flex flex-col items-center justify-center p-2 transition-transform active:scale-95"
+                        >
+                            <PieChart
+                                className={`w-6 h-6 ${activeTab === "budgeting" ? "text-blue-600" : "text-slate-400"}`}
+                            />
+                        </button>
+                    )}
+                    <button
+                        onClick={() => {
+                            setActiveTab("profile");
+                            setIsAddingTx(false);
+                        }}
                         className="flex flex-col items-center justify-center p-2 transition-transform active:scale-95"
                     >
-                        <PieChart className={`w-6 h-6 ${activeTab === 'budgeting' ? "text-blue-600" : "text-slate-400"}`} />
-                    </button>
-                    <button 
-                        onClick={() => { setActiveTab('profile'); setIsAddingTx(false); }} 
-                        className="flex flex-col items-center justify-center p-2 transition-transform active:scale-95"
-                    >
-                        <div className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${activeTab === 'profile' ? "bg-blue-600 text-white shadow-md shadow-blue-200" : "bg-slate-200 text-slate-500"}`}>
-                            {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
+                        <div
+                            className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${activeTab === "profile" ? "bg-blue-600 text-white shadow-md shadow-blue-200" : "bg-slate-200 text-slate-500"}`}
+                        >
+                            {currentUser?.name
+                                ? currentUser.name.charAt(0).toUpperCase()
+                                : "U"}
                         </div>
                     </button>
                 </div>
             </nav>
 
             {/* Tombol Kembali Ke Atas */}
-            <div className={`fixed bottom-24 right-4 md:bottom-8 md:right-8 z-40 transition-all duration-300 transform ${showScrollTop ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}>
+            <div
+                className={`fixed bottom-24 right-4 md:bottom-8 md:right-8 z-40 transition-all duration-300 transform ${showScrollTop ? "translate-y-0 opacity-100" : "translate-y-10 opacity-0 pointer-events-none"}`}
+            >
                 <button
-                    onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+                    onClick={() =>
+                        window.scrollTo({ top: 0, behavior: "smooth" })
+                    }
                     className="p-3 bg-blue-600 text-white rounded-full shadow-lg shadow-blue-200 hover:bg-blue-700 hover:shadow-xl transition-all"
                     title="Kembali ke atas"
                 >
