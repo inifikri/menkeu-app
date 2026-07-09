@@ -26,6 +26,25 @@ class UserController extends Controller
         return redirect()->back()->with('message', 'Anggota berhasil ditambahkan.');
     }
 
+    public function update(Request $request, $id)
+    {
+        $user = User::findOrFail($id);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'role' => 'required|string',
+            'permissions' => 'nullable|array',
+        ]);
+
+        if (!isset($validated['permissions'])) {
+            $validated['permissions'] = [];
+        }
+
+        $user->update($validated);
+
+        return redirect()->back()->with('message', 'Data anggota berhasil diperbarui.');
+    }
+
     public function destroy($id)
     {
         $user = User::findOrFail($id);

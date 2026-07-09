@@ -18,6 +18,7 @@ import {
     Calendar,
     User,
     Check,
+    BadgeCheck,
     RefreshCw,
     RotateCcw,
     AlertCircle,
@@ -67,6 +68,10 @@ import {
     Wifi,
     HandCoins,
     Apple,
+    Monitor,
+    Smartphone,
+    KeyRound,
+    CheckCircle,
 } from "lucide-react";
 import ExecutiveDashboard from "../Components/ExecutiveDashboard";
 
@@ -110,6 +115,16 @@ const AVAILABLE_PERMISSIONS = [
         desc: "Menambah & mengatur dompet/rekening",
     },
     {
+        key: "lihat_dompet",
+        label: "Lihat Dompet",
+        desc: "Melihat dompet/rekening",
+    },
+    {
+        key: "topup_dompet",
+        label: "Top Up Dompet",
+        desc: "Menambah saldo top up untuk dompet",
+    },
+    {
         key: "kelola_kategori",
         label: "Kelola Kategori",
         desc: "Menambah & mengedit kategori pengeluaran",
@@ -129,53 +144,78 @@ const AVAILABLE_PERMISSIONS = [
         label: "Ekspor Data",
         desc: "Mengunduh laporan dalam format CSV",
     },
+    {
+        key: "lihat_log",
+        label: "Lihat Log",
+        desc: "Melihat log activity",
+    },
+    {
+        key: "reset_data",
+        label: "Reset Data",
+        desc: "Mereset data seluruh aplikasi",
+    }
 ];
 
 const ROLE_PERMISSIONS = {
-    Administrator: [
-        "catat_transaksi",
-        "lihat_laporan",
+    Admin: [
         "kelola_dompet",
-        "kelola_kategori",
-        "atur_budget",
         "kelola_anggota",
-        "ekspor_data",
-    ],
-    Bendahara: [
-        "catat_transaksi",
+        "lihat_log",
+        "reset_data",
         "lihat_laporan",
-        "kelola_dompet",
-        "kelola_kategori",
         "atur_budget",
         "ekspor_data",
+        "kelola_kategori"
     ],
-    Anggota: ["catat_transaksi", "lihat_laporan"],
+    Suami: [
+        "lihat_dompet",
+        "topup_dompet",
+        "catat_transaksi",
+        "kelola_kategori",
+        "lihat_laporan",
+        "atur_budget",
+        "ekspor_data"
+    ],
+    Istri: [
+        "lihat_dompet",
+        "topup_dompet",
+        "catat_transaksi",
+        "kelola_kategori",
+        "lihat_laporan",
+        "atur_budget",
+        "ekspor_data"
+    ],
+    Anggota: [
+        "lihat_dompet",
+        "catat_transaksi",
+        "lihat_laporan"
+    ],
 };
 
 const INITIAL_MEMBERS = [
     {
         id: "m1",
-        name: "Ayah (Budi)",
-        role: "Administrator",
-        avatarColor: "bg-blue-500",
-        email: "budi@finkeluarga.com",
-        permissions: ROLE_PERMISSIONS["Administrator"],
+        name: "Admin Fikrikeluarga",
+        role: "Admin",
+        avatarColor: "bg-indigo-600",
+        email: "admin@fikrifamily.com",
+        permissions: ROLE_PERMISSIONS["Admin"],
     },
     {
         id: "m2",
-        name: "Ibu (Siti)",
-        role: "Bendahara",
-        avatarColor: "bg-pink-500",
-        email: "siti@finkeluarga.com",
-        permissions: ROLE_PERMISSIONS["Bendahara"],
+        name: "Suami",
+        role: "Suami",
+        avatarColor: "bg-blue-500",
+        email: "fhm@fikrifamily.com",
+        permissions: ROLE_PERMISSIONS["Suami"],
     },
     {
         id: "m3",
-        name: "Kakak (Rian)",
-        role: "Anggota",
-        avatarColor: "bg-emerald-500",
-        email: "rian@finkeluarga.com",
-        permissions: ROLE_PERMISSIONS["Anggota"],
+        name: "Istri",
+        role: "Istri",
+        avatarColor: "bg-pink-500",
+        email: "adhs@fikrifamily.com",
+        permissions: ROLE_PERMISSIONS["Istri"],
     },
 ];
 
@@ -272,7 +312,7 @@ const INITIAL_TRANSACTIONS = [
     },
 ];
 
-export default function App({ auth, initialMembers, initialCategories, initialWallets, initialTransactions }) {
+export default function App({ auth, initialMembers, initialCategories, initialWallets, initialTransactions, activeSessions }) {
     const currentUser = auth?.user || null;
     const isLoggedIn = !!currentUser;
 
@@ -297,6 +337,7 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
 
     const [isResetModalOpen, setIsResetModalOpen] = useState(false);
     const [selectedResetMonths, setSelectedResetMonths] = useState([]);
+    const [selectedResetRole, setSelectedResetRole] = useState("all");
     const [isResetting, setIsResetting] = useState(false);
 
     const availableTransactionMonths = useMemo(() => {
@@ -333,10 +374,17 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
 
     const handleResetSubmit = () => {
         if (selectedResetMonths.length === 0) return;
-        if (!confirm(`Apakah Anda yakin ingin menghapus seluruh data transaksi untuk ${selectedResetMonths.length} bulan terpilih serta mereset seluruh data kategori & kantong ke data bawaan? Tindakan ini tidak dapat dibatalkan.`)) return;
+        let confirmMsg = `Apakah Anda yakin ingin menghapus data transaksi untuk ${selectedResetMonths.length} bulan terpilih`;
+        if (selectedResetRole !== 'all') {
+            confirmMsg += ` (Role ${selectedResetRole})`;
+        } else {
+            confirmMsg += ` serta mereset seluruh data kategori & kantong ke data bawaan`;
+        }
+        confirmMsg += "? Tindakan ini tidak dapat dibatalkan.";
+        if (!confirm(confirmMsg)) return;
         
         setIsResetting(true);
-        axios.post(route('profile.reset-data'), { months: selectedResetMonths })
+        axios.post(route('profile.reset-data'), { months: selectedResetMonths, role: selectedResetRole })
             .then(res => {
                 showToast("Data transaksi berhasil di-reset.");
                 setIsResetModalOpen(false);
@@ -365,6 +413,84 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
 
     const [activeTab, setActiveTab] = useState(isLoggedIn ? (currentUser.role === "Administrator" || currentUser.permissions?.includes("lihat_laporan") ? "dashboard" : "profile") : "dashboard");
     const [activeSettingsTab, setActiveSettingsTab] = useState("profile");
+    
+    // Form States for Profile and Security
+    const [isEditingProfile, setIsEditingProfile] = useState(false);
+    const { data: profileData, setData: setProfileData, post: postProfile, processing: processingProfile, errors: profileErrors, recentlySuccessful: profileSuccessful } = useForm({
+        name: currentUser?.name || '',
+        email: currentUser?.email || '',
+        avatar: null,
+        _method: 'PATCH'
+    });
+    
+    const { data: pwdData, setData: setPwdData, put: putPassword, processing: processingPwd, errors: pwdErrors, reset: resetPwd, recentlySuccessful: pwdSuccessful } = useForm({
+        current_password: '',
+        password: '',
+        password_confirmation: '',
+    });
+
+
+    const generatePassword = () => {
+        const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+~`|}{[]:;?><,./-=";
+        let retVal = "";
+        // Ensure at least one uppercase, one lowercase, one numeric, and one symbol
+        retVal += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random() * 26)];
+        retVal += "abcdefghijklmnopqrstuvwxyz"[Math.floor(Math.random() * 26)];
+        retVal += "0123456789"[Math.floor(Math.random() * 10)];
+        retVal += "!@#$%^&*()_+~`|}{[]:;?><,./-="[Math.floor(Math.random() * 29)];
+        for (let i = 0, n = charset.length; i < 12; ++i) {
+            retVal += charset.charAt(Math.floor(Math.random() * n));
+        }
+        // Shuffle the string
+        retVal = retVal.split('').sort(() => 0.5 - Math.random()).join('');
+        setPwdData(data => ({ ...data, password: retVal, password_confirmation: retVal }));
+    };
+    
+    const evaluatePasswordStrength = (pwd) => {
+        let score = 0;
+        if (pwd.length > 8) score += 1;
+        if (/[A-Z]/.test(pwd)) score += 1;
+        if (/[a-z]/.test(pwd)) score += 1;
+        if (/[0-9]/.test(pwd)) score += 1;
+        if (/[^A-Za-z0-9]/.test(pwd)) score += 1;
+        
+        if (score === 0) return { label: 'Kosong', color: 'bg-slate-200' };
+        if (score <= 2) return { label: 'Lemah', color: 'bg-rose-500', width: '25%' };
+        if (score <= 3) return { label: 'Sedang', color: 'bg-yellow-500', width: '50%' };
+        if (score === 4) return { label: 'Kuat', color: 'bg-blue-500', width: '75%' };
+        return { label: 'Sangat Kuat', color: 'bg-emerald-500', width: '100%' };
+    };
+
+    const submitProfileUpdate = (e) => {
+        e.preventDefault();
+        postProfile(route('profile.update'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                showToast("Profil berhasil diperbarui");
+                setActiveSettingsTab("profile");
+            }
+        });
+    };
+
+    const submitPasswordUpdate = (e) => {
+        e.preventDefault();
+        putPassword(route('password.update'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                showToast("Password berhasil diubah");
+                resetPwd();
+            },
+            onError: (errors) => {
+                if (errors.password) {
+                    resetPwd('password', 'password_confirmation');
+                }
+                if (errors.current_password) {
+                    resetPwd('current_password');
+                }
+            }
+        });
+    };
+
     
     // Logs State
     const [activityLogs, setActivityLogs] = useState([]);
@@ -446,6 +572,11 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
     const [showFilters, setShowFilters] = useState(false);
 
     const [editingTx, setEditingTx] = useState(null);
+
+    const [showTopUpModal, setShowTopUpModal] = useState(false);
+    const [topUpData, setTopUpData] = useState({ walletId: '', amount: '' });
+    const [walletTxPage, setWalletTxPage] = useState(1);
+
 
     const [showColumnDropdown, setShowColumnDropdown] = useState(false);
     const [visibleColumns, setVisibleColumns] = useState({
@@ -795,6 +926,32 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
         setBulkTransactions(updated);
     };
 
+    
+    const handleTopUpSubmit = (e) => {
+        e.preventDefault();
+        if (!topUpData.amount || isNaN(topUpData.amount) || parseFloat(topUpData.amount) <= 0) {
+            showToast("Nominal top up tidak valid", "error");
+            return;
+        }
+        const amountNum = parseFloat(topUpData.amount);
+        const newTx = {
+            id: "t_" + Date.now(),
+            description: "Top Up Kantong",
+            amount: amountNum,
+            type: "income",
+            categoryId: categories[0]?.id || "c1",
+            walletId: topUpData.walletId,
+            memberId: currentUser?.id || members[0]?.id || "m1",
+            date: new Date().toISOString().split("T")[0],
+        };
+        
+        setWallets(prev => prev.map(w => w.id === topUpData.walletId ? { ...w, balance: w.balance + amountNum } : w));
+        setTransactions(prev => [newTx, ...prev]);
+        showToast("Top up berhasil!", "success");
+        logActivity('Top Up Dompet', `Top up kantong senilai Rp ${formatIDR(amountNum)}`, 'Tambah', 'bg-emerald-500');
+        setShowTopUpModal(false);
+    };
+
     const handleSaveBulkTransactions = (e) => {
         e.preventDefault();
 
@@ -878,63 +1035,41 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
         const originalTx = transactions.find((t) => t.id === editingTx.id);
         if (!originalTx) return;
 
-        setWallets((prevWallets) => {
-            let updated = [...prevWallets];
-
-            updated = updated.map((w) => {
-                if (w.id === originalTx.walletId) {
-                    const reverseAmount =
-                        originalTx.type === "income"
-                            ? -originalTx.amount
-                            : originalTx.amount;
-                    return { ...w, balance: w.balance + reverseAmount };
-                }
-                return w;
-            });
-
-            updated = updated.map((w) => {
-                if (w.id === editingTx.walletId) {
-                    const applyAmount =
-                        editingTx.type === "income" ? amountNum : -amountNum;
-                    return { ...w, balance: w.balance + applyAmount };
-                }
-                return w;
-            });
-
-            return updated;
+        router.put(`/transactions/${editingTx.id}`, {
+            date: editingTx.date,
+            description: editingTx.description,
+            amount: amountNum,
+            type: editingTx.type,
+            category_id: editingTx.categoryId || null,
+            wallet_id: editingTx.walletId,
+            user_id: editingTx.memberId,
+        }, {
+            onSuccess: () => {
+                setEditingTx(null);
+                showToast("Transaksi berhasil diperbarui");
+                logActivity('Update Transaksi', `Memperbarui transaksi: ${editingTx.description}`, 'Edit', 'bg-amber-500');
+            },
+            onError: (err) => {
+                showToast("Gagal memperbarui transaksi", "error");
+            }
         });
-
-        const updatedTransactions = transactions.map((t) =>
-            t.id === editingTx.id ? { ...editingTx, amount: amountNum } : t
-        );
-        setTransactions(updatedTransactions);
-        setEditingTx(null);
-        showToast("Transaksi berhasil diperbarui");
-        logActivity('Update Transaksi', `Memperbarui transaksi: ${editingTx.description}`, 'Edit', 'bg-amber-500');
     };
 
     const handleDeleteTransaction = (id, type, amount, walletId) => {
+        if (!window.confirm("Apakah Anda yakin ingin menghapus transaksi ini?")) return;
         const txToDelete = transactions.find(t => t.id === id);
-        const updatedTransactions = transactions.filter((t) => t.id !== id);
 
-        setWallets((prevWallets) =>
-            prevWallets.map((w) => {
-                if (w.id === walletId) {
-                    return {
-                        ...w,
-                        balance:
-                            type === "income"
-                                ? w.balance - amount
-                                : w.balance + amount,
-                    };
+        router.delete(`/transactions/${id}`, {
+            onSuccess: () => {
+                showToast("Transaksi berhasil dihapus", "info");
+                if (txToDelete) {
+                    logActivity('Hapus Transaksi', `Menghapus transaksi: ${txToDelete.description}`, 'Trash2', 'bg-rose-500');
                 }
-                return w;
-            }),
-        );
-
-        setTransactions(updatedTransactions);
-        showToast("Transaksi berhasil dihapus", "info");
-        logActivity('Hapus Transaksi', `Menghapus transaksi: ${txToDelete?.description}`, 'Trash2', 'bg-rose-500');
+            },
+            onError: (err) => {
+                showToast("Gagal menghapus transaksi", "error");
+            }
+        });
     };
 
     const handleAddCategory = (e) => {
@@ -1088,17 +1223,29 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
         }
 
         if (newMember.id) {
-            const updatedMembers = members.map(m => m.id === newMember.id ? {
-                ...m,
+            // Update existing member
+            router.put(route('users.update', newMember.id), {
                 name: newMember.name,
                 role: newMember.role,
-                permissions: [...newMember.permissions],
-            } : m);
-            setMembers(updatedMembers);
-            setShowAddMemberModal(false);
-            showToast("Data anggota berhasil diperbarui");
-            logActivity('Update Anggota', `Memperbarui data anggota: ${newMember.name}`, 'User', 'bg-amber-500');
+                permissions: newMember.permissions,
+            }, {
+                preserveState: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    setShowAddMemberModal(false);
+                    showToast("Data anggota berhasil diperbarui");
+                    logActivity('Update Anggota', `Memperbarui data anggota: ${newMember.name}`, 'User', 'bg-amber-500');
+                    setNewMember({
+                        id: null,
+                        name: "",
+                        role: "Anggota",
+                        permissions: [...ROLE_PERMISSIONS["Anggota"]],
+                    });
+                },
+                onError: () => showToast("Gagal memperbarui data anggota", "error")
+            });
         } else {
+            // Create new member
             const colors = [
                 "bg-purple-500",
                 "bg-teal-500",
@@ -1107,37 +1254,46 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                 "bg-sky-500",
             ];
             const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            const generatedEmail = `${newMember.name.toLowerCase().replace(/\s+/g, "")}${Math.floor(Math.random()*1000)}@Fikrikeluarga.com`;
 
-            const newM = {
-                id: "m_" + Date.now(),
+            router.post(route('users.store'), {
                 name: newMember.name,
+                email: generatedEmail,
+                password: 'password123', // Default password
                 role: newMember.role,
                 avatarColor: randomColor,
-                email: `${newMember.name.toLowerCase().replace(/\s+/g, "")}@finkeluarga.com`,
-                permissions: [...newMember.permissions],
-            };
-
-            setMembers([...members, newM]);
-            setShowAddMemberModal(false);
-            showToast("Anggota keluarga baru berhasil didaftarkan");
-            logActivity('Tambah Anggota', `Mendaftarkan anggota baru: ${newMember.name}`, 'UserPlus', 'bg-emerald-500');
+                permissions: newMember.permissions,
+            }, {
+                preserveState: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    setShowAddMemberModal(false);
+                    showToast("Anggota keluarga baru berhasil didaftarkan");
+                    logActivity('Tambah Anggota', `Mendaftarkan anggota baru: ${newMember.name}`, 'UserPlus', 'bg-emerald-500');
+                    setNewMember({
+                        id: null,
+                        name: "",
+                        role: "Anggota",
+                        permissions: [...ROLE_PERMISSIONS["Anggota"]],
+                    });
+                },
+                onError: () => showToast("Gagal mendaftarkan anggota", "error")
+            });
         }
-
-        setNewMember({
-            id: null,
-            name: "",
-            role: "Anggota",
-            permissions: [...ROLE_PERMISSIONS["Anggota"]],
-        });
-        setShowAddMemberModal(false);
     };
 
     const handleDeleteMember = (id) => {
         if (window.confirm("Yakin ingin menghapus anggota ini?")) {
             const memberToDel = members.find(m => m.id === id);
-            setMembers(members.filter((m) => m.id !== id));
-            showToast("Anggota berhasil dihapus", "info");
-            logActivity('Hapus Anggota', `Menghapus anggota: ${memberToDel?.name}`, 'UserMinus', 'bg-rose-500');
+            router.delete(route('users.destroy', id), {
+                preserveState: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    showToast("Anggota berhasil dihapus", "info");
+                    logActivity('Hapus Anggota', `Menghapus anggota: ${memberToDel?.name}`, 'UserMinus', 'bg-rose-500');
+                },
+                onError: () => showToast("Gagal menghapus anggota", "error")
+            });
         }
     };
 
@@ -1154,20 +1310,30 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
     };
 
     const handleToggleMemberPermission = (memberId, permKey) => {
-        setMembers((prev) =>
-            prev.map((m) => {
-                if (m.id !== memberId) return m;
-                const perms = m.permissions || [];
-                const has = perms.includes(permKey);
-                return {
-                    ...m,
-                    permissions: has
-                        ? perms.filter((p) => p !== permKey)
-                        : [...perms, permKey],
-                };
-            }),
-        );
-        showToast("Hak akses berhasil diperbarui");
+        const memberToUpdate = members.find(m => m.id === memberId);
+        if (!memberToUpdate) return;
+        
+        const perms = memberToUpdate.permissions || [];
+        const has = perms.includes(permKey);
+        const newPerms = has ? perms.filter(p => p !== permKey) : [...perms, permKey];
+
+        // Optimistic UI update
+        setMembers(prev => prev.map(m => m.id === memberId ? { ...m, permissions: newPerms } : m));
+
+        router.put(route('users.update', memberId), {
+            name: memberToUpdate.name,
+            role: memberToUpdate.role,
+            permissions: newPerms,
+        }, {
+            preserveState: true,
+            preserveScroll: true,
+            onSuccess: () => showToast("Hak akses berhasil diperbarui"),
+            onError: () => {
+                showToast("Gagal memperbarui hak akses", "error");
+                // Revert optimistic update
+                setMembers(prev => prev.map(m => m.id === memberId ? { ...m, permissions: perms } : m));
+            }
+        });
     };
 
     const handleNewMemberRoleChange = (role) => {
@@ -1418,6 +1584,32 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
     if (!isLoggedIn) {
         return (
             <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans selection:bg-blue-500 selection:text-white">
+                {/* === NOTIFIKASI TOAST === */}
+                {toast && (
+                    <div className="fixed top-4 right-4 left-4 md:left-auto md:w-96 z-50 animate-bounce">
+                        <div
+                            className={`p-4 rounded-xl shadow-lg border flex items-center space-x-3 ${
+                                toast.type === "success"
+                                    ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                                    : toast.type === "error"
+                                      ? "bg-rose-50 border-rose-200 text-rose-800"
+                                      : "bg-blue-50 border-blue-200 text-blue-800"
+                            }`}
+                        >
+                            {toast.type === "success" && (
+                                <Check className="w-5 h-5 text-emerald-600" />
+                            )}
+                            {toast.type === "error" && (
+                                <AlertCircle className="w-5 h-5 text-rose-600" />
+                            )}
+                            {toast.type === "info" && (
+                                <Info className="w-5 h-5 text-blue-600" />
+                            )}
+                            <p className="text-sm font-semibold">{toast.message}</p>
+                        </div>
+                    </div>
+                )}
+                
                 <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 animate-fadeIn">
                     {/* SISI KIRI: BRANDING & MOCKUP VISUAL */}
                     <div className="hidden md:flex flex-col justify-between p-10 bg-gradient-to-br from-blue-600 to-indigo-700 text-white relative overflow-hidden">
@@ -1428,7 +1620,7 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                 <Wallet className="w-6 h-6 text-white" />
                             </div>
                             <span className="font-extrabold text-xl tracking-tight">
-                                FinKeluarga
+                                Fikrikeluarga
                             </span>
                         </div>
 
@@ -1445,7 +1637,7 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                         </div>
 
                         <div className="text-xs text-blue-200/80 z-10">
-                            © 2026 FinKeluarga System. All rights reserved.
+                            © 2026 Fikrikeluarga System. All rights reserved.
                         </div>
                     </div>
 
@@ -1793,6 +1985,20 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
             <main className="flex-1 max-w-[1400px] w-full mx-auto p-4 md:py-8 pb-24 md:pb-8 grid grid-cols-1 md:grid-cols-4 gap-6">
                 {/* SIDEBAR NAVIGATION (DESKTOP) */}
                 <aside className="hidden md:block col-span-1 h-fit space-y-1.5 pr-2 sticky top-8">
+                    {hasPermission("catat_transaksi") && (
+                        <div className="mb-6 px-1">
+                            <button
+                                onClick={() => {
+                                    setActiveTab("pencatatan");
+                                    handleStartAddTransaction();
+                                }}
+                                className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-blue-600 text-white rounded-2xl text-sm font-bold shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all"
+                            >
+                                <Plus className="w-5 h-5" />
+                                <span>Catat Pengeluaran</span>
+                            </button>
+                        </div>
+                    )}
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-4 mb-4">
                         Menu Utama
                     </p>
@@ -1802,22 +2008,50 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                             label: "Dashboard",
                             icon: LayoutDashboard,
                         },
-                        hasPermission("kelola_dompet") && { id: "dompet", label: "Kantong", icon: Wallet },
+                        (hasPermission("kelola_dompet") || hasPermission("lihat_dompet")) && { id: "dompet", label: "Kantong", icon: Wallet },
                         hasPermission("atur_budget") && { id: "budgeting", label: "Budgeting", icon: PieChart },
                         hasPermission("ekspor_data") && { id: "import", label: "Import Data", icon: Upload },
+                        hasPermission("kelola_kategori") && {
+                            id: "kategori",
+                            label: "Kategori",
+                            icon: Tag,
+                            action: () => {
+                                setActiveTab("profile");
+                                setActiveSettingsTab("kategori");
+                            }
+                        },
                         {
                             id: "profile",
-                            label: "Profile",
+                            label: (
+                                <div className="flex items-center gap-1.5">
+                                    <span>{currentUser?.name || "Profile"}</span>
+                                    <BadgeCheck className="w-4 h-4 text-white fill-blue-500 flex-shrink-0" />
+                                </div>
+                            ),
                             icon: "PROFILE_PHOTO",
+                            action: () => {
+                                setActiveTab("profile");
+                                setActiveSettingsTab("profile");
+                            }
                         },
                     ].filter(Boolean).map((item) => {
                         const IconComponent = item.icon;
-                        const isSelected = activeTab === item.id;
+                        let isSelected = activeTab === item.id;
+                        if (item.id === "kategori") {
+                            isSelected = activeTab === "profile" && activeSettingsTab === "kategori";
+                        } else if (item.id === "profile") {
+                            isSelected = activeTab === "profile" && activeSettingsTab !== "kategori";
+                        }
+                        
                         return (
                             <button
                                 key={item.id}
                                 onClick={() => {
-                                    setActiveTab(item.id);
+                                    if (item.action) {
+                                        item.action();
+                                    } else {
+                                        setActiveTab(item.id);
+                                    }
                                     if (item.id !== "pencatatan") {
                                         setIsAddingTx(false);
                                     }
@@ -1829,15 +2063,19 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                 }`}
                             >
                                 {item.icon === "PROFILE_PHOTO" ? (
-                                    <div
-                                        className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] ${isSelected ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-500"}`}
-                                    >
-                                        {currentUser?.name
-                                            ? currentUser.name
-                                                  .charAt(0)
-                                                  .toUpperCase()
-                                            : "U"}
-                                    </div>
+                                    currentUser?.avatar ? (
+                                        <img src={`/storage/${currentUser.avatar}`} alt="Avatar" className={`w-6 h-6 rounded-full object-cover border ${isSelected ? "border-white" : "border-transparent"}`} />
+                                    ) : (
+                                        <div
+                                            className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] ${isSelected ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-500"}`}
+                                        >
+                                            {currentUser?.name
+                                                ? currentUser.name
+                                                      .charAt(0)
+                                                      .toUpperCase()
+                                                : "U"}
+                                        </div>
+                                    )
                                 ) : (
                                     <IconComponent
                                         className={`w-5 h-5 ${isSelected ? "text-blue-600" : "text-slate-400"}`}
@@ -1857,343 +2095,7 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                     {/* TAB 2: CATAT PENGELUARAN HARIAN */}
                     {activeTab === "pencatatan" && (
                         <div className="space-y-6 animate-fadeIn">
-                            {!isAddingTx ? (
-                                <div className="space-y-6">
-                                    {/* TAB TOGGLE (Top, Center, Rounded 50%) */}
-                                    <div className="flex justify-center mb-6">
-                                        <div className="flex bg-slate-200/60 p-1.5 rounded-full w-full max-w-sm shadow-inner relative">
-                                            <button
-                                                onClick={() =>
-                                                    setActiveTab("budgeting")
-                                                }
-                                                className={`flex-1 px-4 py-2.5 rounded-full text-sm font-bold transition-all text-slate-500 hover:text-slate-800`}
-                                            >
-                                                Budgeting
-                                            </button>
-                                            <button
-                                                onClick={() =>
-                                                    setActiveTab("pencatatan")
-                                                }
-                                                className={`flex-1 px-4 py-2.5 rounded-full text-sm font-bold transition-all bg-white shadow-md text-blue-600`}
-                                            >
-                                                History Transaksi
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* KONTROL PENCARIAN & FILTER (Clean, Modern, No Card) */}
-                                    <div className="flex flex-col md:flex-row gap-3 items-center justify-between pb-2">
-                                        {/* Search Input (No Card, White bg) */}
-                                        <div className="relative flex-1 w-full max-w-md">
-                                            <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
-                                            <input
-                                                type="text"
-                                                placeholder="Cari transaksi..."
-                                                value={searchQuery}
-                                                onChange={(e) =>
-                                                    setSearchQuery(
-                                                        e.target.value,
-                                                    )
-                                                }
-                                                className="w-full pl-11 pr-4 py-2.5 text-sm rounded-full bg-white border border-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-800 transition-all"
-                                            />
-                                        </div>
-
-                                        <div className="flex gap-2 w-full md:w-auto items-center">
-                                            {/* Filter Kategori (Only) */}
-                                            <div className="relative w-full md:w-48">
-                                                <select
-                                                    value={filterCategory}
-                                                    onChange={(e) =>
-                                                        setFilterCategory(
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                    className="w-full px-4 py-2.5 bg-white border border-slate-200 shadow-sm rounded-full text-sm font-bold text-slate-600 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 appearance-none pr-8 transition-all"
-                                                >
-                                                    <option value="all">
-                                                        Semua Kategori
-                                                    </option>
-                                                    {categories.map((c) => (
-                                                        <option
-                                                            key={c.id}
-                                                            value={c.id}
-                                                        >
-                                                            {c.name}
-                                                        </option>
-                                                    ))}
-                                                </select>
-                                            </div>
-
-                                            {/* Button Tambah */}
-                                            <button
-                                                onClick={() =>
-                                                    handleStartAddTransaction()
-                                                }
-                                                className="px-4 py-2.5 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-700 transition-all text-sm flex items-center justify-center shadow-md shadow-blue-200 shrink-0"
-                                            >
-                                                <Plus className="w-4 h-4" />
-                                                <span className="hidden sm:inline ml-1.5">
-                                                    Catat
-                                                </span>
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* DAFTAR RIWAYAT TRANSAKSI - Grouped by Hari */}
-                                    <div className="space-y-6 pt-4">
-                                        {(() => {
-                                            const daysIndo = [
-                                                "Minggu",
-                                                "Senin",
-                                                "Selasa",
-                                                "Rabu",
-                                                "Kamis",
-                                                "Jumat",
-                                                "Sabtu",
-                                            ];
-                                            const monthsIndo = [
-                                                "Jan",
-                                                "Feb",
-                                                "Mar",
-                                                "Apr",
-                                                "Mei",
-                                                "Jun",
-                                                "Juli",
-                                                "Agt",
-                                                "Sep",
-                                                "Okt",
-                                                "Nov",
-                                                "Des",
-                                            ];
-
-                                            // Group transactions by Date string
-                                            const groupedTxs = {};
-                                            paginatedTransactions.forEach(
-                                                (tx) => {
-                                                    const d = new Date(tx.date);
-                                                    const dateKey = `${daysIndo[d.getDay()]}, ${d.getDate()} ${monthsIndo[d.getMonth()]}`;
-                                                    if (!groupedTxs[dateKey])
-                                                        groupedTxs[dateKey] =
-                                                            [];
-                                                    groupedTxs[dateKey].push(
-                                                        tx,
-                                                    );
-                                                },
-                                            );
-
-                                            return Object.entries(
-                                                groupedTxs,
-                                            ).map(([dateKey, txs]) => (
-                                                <div
-                                                    key={dateKey}
-                                                    className="space-y-3"
-                                                >
-                                                    {/* HARI / TANGGAL HEADER */}
-                                                    <div className="flex items-center gap-2 pl-2">
-                                                        <h3 className="font-extrabold text-slate-500 text-sm">
-                                                            {dateKey}
-                                                        </h3>
-                                                        <div className="h-px bg-slate-200 flex-1 ml-2"></div>
-                                                    </div>
-
-                                                    <div className="space-y-3">
-                                                        {txs.map((tx) => {
-                                                            const member =
-                                                                members.find(
-                                                                    (m) =>
-                                                                        m.id ===
-                                                                        tx.memberId,
-                                                                );
-                                                            const cat =
-                                                                categories.find(
-                                                                    (c) =>
-                                                                        c.id ===
-                                                                        tx.categoryId,
-                                                                );
-                                                            const wallet =
-                                                                wallets.find(
-                                                                    (w) =>
-                                                                        w.id ===
-                                                                        tx.walletId,
-                                                                );
-                                                            const IconComponent =
-                                                                cat?.icon &&
-                                                                ICON_MAP[cat.icon]
-                                                                    ? ICON_MAP[cat.icon]
-                                                                    : Grid;
-
-                                                            return (
-                                                                <div
-                                                                    key={tx.id}
-                                                                    className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md hover:border-blue-200 transition-all group flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                                                                >
-                                                                    <div className="flex items-start sm:items-center gap-3.5 flex-1 min-w-0">
-                                                                        <div
-                                                                            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${cat?.color ? cat.color.replace("-500", "-100") : "bg-slate-100"}`}
-                                                                        >
-                                                                            <IconComponent
-                                                                                className={`w-5 h-5 ${cat?.color ? cat.color.replace("bg-", "text-").replace("-500", "-600") : "text-slate-500"}`}
-                                                                            />
-                                                                        </div>
-                                                                        <div className="flex-1 min-w-0">
-                                                                            <p className="font-bold text-slate-800 text-sm line-clamp-1">
-                                                                                {
-                                                                                    tx.description
-                                                                                }
-                                                                            </p>
-                                                                            <div className="flex items-center flex-wrap gap-2 mt-1 text-[11px] text-slate-400 font-medium">
-                                                                                <span className="text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-md font-bold">
-                                                                                    {cat?.name ||
-                                                                                        "Lain-lain"}
-                                                                                </span>
-                                                                                <span className="text-slate-300">
-                                                                                    •
-                                                                                </span>
-                                                                                <span className="flex items-center gap-1">
-                                                                                    <User className="w-3 h-3" />{" "}
-                                                                                    {
-                                                                                        member?.name.split(
-                                                                                            " ",
-                                                                                        )[0]
-                                                                                    }
-                                                                                </span>
-                                                                                <span className="text-slate-300">
-                                                                                    •
-                                                                                </span>
-                                                                                <span className="flex items-center gap-1">
-                                                                                    <Wallet className="w-3 h-3" />{" "}
-                                                                                    {wallet?.name ||
-                                                                                        "-"}
-                                                                                </span>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-
-                                                                    <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-t-0 border-slate-100 pt-3 sm:pt-0 mt-1 sm:mt-0">
-                                                                        <span
-                                                                            className={`font-black text-base whitespace-nowrap ${tx.type === "income" ? "text-emerald-600" : "text-rose-600"}`}
-                                                                        >
-                                                                            {tx.type ===
-                                                                            "income"
-                                                                                ? "+"
-                                                                                : "-"}
-                                                                            {formatIDR(
-                                                                                tx.amount,
-                                                                            )}
-                                                                        </span>
-
-                                                                        <div className="flex items-center gap-1.5 transition-opacity">
-                                                                            <button
-                                                                                onClick={() =>
-                                                                                    handleOpenEdit(
-                                                                                        tx,
-                                                                                    )
-                                                                                }
-                                                                                className="p-2 text-slate-400 hover:text-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
-                                                                                title="Ubah Transaksi"
-                                                                            >
-                                                                                <Edit className="w-4 h-4" />
-                                                                            </button>
-                                                                            <button
-                                                                                onClick={() =>
-                                                                                    handleDeleteTransaction(
-                                                                                        tx.id,
-                                                                                        tx.type,
-                                                                                        tx.amount,
-                                                                                        tx.walletId,
-                                                                                    )
-                                                                                }
-                                                                                className="p-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors"
-                                                                                title="Hapus Transaksi"
-                                                                            >
-                                                                                <Trash2 className="w-4 h-4" />
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                </div>
-                                            ));
-                                        })()}
-
-                                        {filteredTransactions.length === 0 && (
-                                            <div className="text-center py-10 bg-white rounded-2xl border border-slate-200 shadow-sm text-slate-400 text-sm">
-                                                Belum ada riwayat transaksi yang
-                                                cocok dengan filter atau
-                                                pencarian Anda.
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* PAGINATION CONTROLS (Dibawah list transaksi) */}
-                                    {filteredTransactions.length > 0 && (
-                                        <div className="flex items-center justify-center pt-2 gap-5">
-                                            <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 sm:pb-0">
-                                                <button
-                                                    onClick={() =>
-                                                        setCurrentPage((prev) =>
-                                                            Math.max(
-                                                                prev - 1,
-                                                                1,
-                                                            ),
-                                                        )
-                                                    }
-                                                    disabled={currentPage === 1}
-                                                    className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:hover:bg-white transition-all shadow-sm"
-                                                >
-                                                    <ChevronLeft className="w-4 h-4" />
-                                                </button>
-
-                                                <div className="flex gap-1.5">
-                                                    {Array.from(
-                                                        { length: totalPages },
-                                                        (_, i) => i + 1,
-                                                    ).map((pageNum) => (
-                                                        <button
-                                                            key={pageNum}
-                                                            onClick={() =>
-                                                                setCurrentPage(
-                                                                    pageNum,
-                                                                )
-                                                            }
-                                                            className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${
-                                                                currentPage ===
-                                                                pageNum
-                                                                    ? "bg-blue-600 text-white shadow-md shadow-blue-200"
-                                                                    : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-                                                            }`}
-                                                        >
-                                                            {pageNum}
-                                                        </button>
-                                                    ))}
-                                                </div>
-
-                                                <button
-                                                    onClick={() =>
-                                                        setCurrentPage((prev) =>
-                                                            Math.min(
-                                                                prev + 1,
-                                                                totalPages,
-                                                            ),
-                                                        )
-                                                    }
-                                                    disabled={
-                                                        currentPage ===
-                                                        totalPages
-                                                    }
-                                                    className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 disabled:hover:bg-white transition-all shadow-sm"
-                                                >
-                                                    <ChevronRightIcon className="w-4 h-4" />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            ) : (
-                                /* HALAMAN INPUT TRANSAKSI BARU (MODERN & SIMPLE) */
+                                {/* HALAMAN INPUT TRANSAKSI BARU (MODERN & SIMPLE) */}
                                 <div className="space-y-4 animate-fadeIn">
                                     <form
                                         onSubmit={handleSaveBulkTransactions}
@@ -2429,8 +2331,8 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                         {/* Action Buttons: Batal & Simpan */}
                                         <div className="flex items-center justify-end space-x-4 pt-6 pb-32 md:pb-6">
                                             <button
-                                                type="button"
                                                 onClick={() => {
+                                                    setActiveTab("dompet");
                                                     setIsAddingTx(false);
                                                     setBulkTransactions([]);
                                                 }}
@@ -2448,267 +2350,14 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                         </div>
                                     </form>
                                 </div>
-                            )}
 
-                            {/* MODAL EDIT DATA TRANSAKSI (Sleek Overlay) */}
-                            {editingTx && (
-                                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                                    <div className="bg-white rounded-2xl border border-slate-150 max-w-lg w-full p-6 shadow-xl space-y-4 animate-scaleUp">
-                                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                                            <h3 className="font-bold text-slate-900 text-base">
-                                                Ubah Transaksi
-                                            </h3>
-                                            <button
-                                                onClick={() =>
-                                                    setEditingTx(null)
-                                                }
-                                                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-
-                                        <form
-                                            onSubmit={handleSaveEditTransaction}
-                                            className="space-y-4"
-                                        >
-                                            <div>
-                                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                                                    Tipe
-                                                </label>
-                                                <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-lg">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            setEditingTx({
-                                                                ...editingTx,
-                                                                type: "expense",
-                                                            })
-                                                        }
-                                                        className={`py-1.5 text-xs font-bold rounded-md transition-all ${
-                                                            editingTx.type ===
-                                                            "expense"
-                                                                ? "bg-blue-600 text-white shadow-sm"
-                                                                : "text-slate-600 hover:text-slate-900"
-                                                        }`}
-                                                    >
-                                                        Keluar (-)
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            setEditingTx({
-                                                                ...editingTx,
-                                                                type: "income",
-                                                            })
-                                                        }
-                                                        className={`py-1.5 text-xs font-bold rounded-md transition-all ${
-                                                            editingTx.type ===
-                                                            "income"
-                                                                ? "bg-emerald-600 text-white shadow-sm"
-                                                                : "text-slate-600 hover:text-slate-900"
-                                                        }`}
-                                                    >
-                                                        Masuk (+)
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                                                    Deskripsi
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={
-                                                        editingTx.description
-                                                    }
-                                                    onChange={(e) =>
-                                                        setEditingTx({
-                                                            ...editingTx,
-                                                            description:
-                                                                e.target.value,
-                                                        })
-                                                    }
-                                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:ring-1 focus:ring-blue-500 text-slate-800"
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                                                    Nominal (Rp)
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    value={editingTx.amount}
-                                                    onChange={(e) =>
-                                                        setEditingTx({
-                                                            ...editingTx,
-                                                            amount: e.target
-                                                                .value,
-                                                        })
-                                                    }
-                                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-bold focus:ring-1 focus:ring-blue-500 text-slate-800"
-                                                />
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                                                        Kategori
-                                                    </label>
-                                                    <select
-                                                        value={
-                                                            editingTx.categoryId
-                                                        }
-                                                        onChange={(e) =>
-                                                            setEditingTx({
-                                                                ...editingTx,
-                                                                categoryId:
-                                                                    e.target
-                                                                        .value,
-                                                            })
-                                                        }
-                                                        className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white text-slate-800 focus:ring-1 focus:ring-blue-500"
-                                                    >
-                                                        {categories.map((c) => (
-                                                            <option
-                                                                key={c.id}
-                                                                value={c.id}
-                                                            >
-                                                                {c.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-
-                                                <div>
-                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                                                        Dompet
-                                                    </label>
-                                                    <select
-                                                        value={
-                                                            editingTx.walletId
-                                                        }
-                                                        onChange={(e) =>
-                                                            setEditingTx({
-                                                                ...editingTx,
-                                                                walletId:
-                                                                    e.target
-                                                                        .value,
-                                                            })
-                                                        }
-                                                        className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white text-slate-800 focus:ring-1 focus:ring-blue-500"
-                                                    >
-                                                        {wallets.map((w) => (
-                                                            <option
-                                                                key={w.id}
-                                                                value={w.id}
-                                                            >
-                                                                {w.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div>
-                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                                                        Anggota
-                                                    </label>
-                                                    <select
-                                                        value={
-                                                            editingTx.memberId
-                                                        }
-                                                        onChange={(e) =>
-                                                            setEditingTx({
-                                                                ...editingTx,
-                                                                memberId:
-                                                                    e.target
-                                                                        .value,
-                                                            })
-                                                        }
-                                                        className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white text-slate-800 focus:ring-1 focus:ring-blue-500"
-                                                    >
-                                                        {members.map((m) => (
-                                                            <option
-                                                                key={m.id}
-                                                                value={m.id}
-                                                            >
-                                                                {m.name}
-                                                            </option>
-                                                        ))}
-                                                    </select>
-                                                </div>
-
-                                                <div>
-                                                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                                                        Tanggal
-                                                    </label>
-                                                    <input
-                                                        type="date"
-                                                        value={editingTx.date}
-                                                        onChange={(e) =>
-                                                            setEditingTx({
-                                                                ...editingTx,
-                                                                date: e.target
-                                                                    .value,
-                                                            })
-                                                        }
-                                                        className="w-full px-2 py-1 border border-slate-200 rounded-lg text-xs text-slate-800 focus:ring-1 focus:ring-blue-500"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="flex justify-end space-x-2 pt-4 border-t border-slate-100">
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setEditingTx(null)
-                                                    }
-                                                    className="px-4 py-2 border border-slate-200 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-50 transition-all"
-                                                >
-                                                    Batal
-                                                </button>
-                                                <button
-                                                    type="submit"
-                                                    className="px-5 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-100 transition-all"
-                                                >
-                                                    Simpan Perubahan
-                                                </button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     )}
 
                     {/* TAB: BUDGETING */}
                     {activeTab === "budgeting" && (
                         <div className="space-y-6 animate-fadeIn">
-                            {/* TAB TOGGLE (Top, Center, Rounded 50%) */}
-                            <div className="flex justify-center mb-6">
-                                <div className="flex bg-slate-200/60 p-1.5 rounded-full w-full max-w-sm shadow-inner relative">
-                                    <button
-                                        onClick={() =>
-                                            setActiveTab("budgeting")
-                                        }
-                                        className={`flex-1 px-4 py-2.5 rounded-full text-sm font-bold transition-all bg-white shadow-md text-blue-600`}
-                                    >
-                                        Budgeting
-                                    </button>
-                                    <button
-                                        onClick={() =>
-                                            setActiveTab("pencatatan")
-                                        }
-                                        className={`flex-1 px-4 py-2.5 rounded-full text-sm font-bold transition-all text-slate-500 hover:text-slate-800`}
-                                    >
-                                        History Transaksi
-                                    </button>
-                                </div>
-                            </div>
+                            {/* (Tab Toggle Dihilangkan) */}
 
                             <div className="flex justify-end mb-4">
                                 <button
@@ -2894,10 +2543,13 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                             {/* List Kantong */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                                 {wallets.map((w) => {
+                                    const isWalletIstri = w.name.toLowerCase().includes('istri') || w.name.toLowerCase().includes('ibu');
+                                    const canTopUp = hasPermission("topup_dompet") && !(currentUser?.role?.toLowerCase() === 'suami' && isWalletIstri);
+
                                     return (
                                         <div key={w.id} className={`p-5 rounded-2xl border bg-white shadow-sm hover:shadow-md transition-all relative overflow-hidden group`}>
                                             <div className={`absolute top-0 right-0 w-24 h-24 rounded-bl-full opacity-10 ${w.color || "bg-blue-600"}`}></div>
-                                            <div className="flex items-start justify-between mb-4 relative z-10">
+                                            <div className="flex items-start justify-between mb-2 relative z-10">
                                                 <div className="flex items-center gap-3">
                                                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm ${w.color || "bg-blue-600"}`}>
                                                         {w.icon === 'Wallet' && <Wallet className="w-5 h-5" />}
@@ -2912,16 +2564,31 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                                         <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{w.type}</span>
                                                     </div>
                                                 </div>
-                                                {hasPermission("kelola_dompet") && (
-                                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        <button onClick={() => { setNewWallet(w); setShowAddWalletModal(true); }} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Edit className="w-3.5 h-3.5" /></button>
-                                                        <button onClick={() => handleDeleteWallet(w.id)} className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg"><Trash2 className="w-3.5 h-3.5" /></button>
-                                                    </div>
-                                                )}
+                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    {hasPermission("kelola_dompet") && (
+                                                        <>
+                                                            <button onClick={() => { setNewWallet(w); setShowAddWalletModal(true); }} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Edit className="w-3.5 h-3.5" /></button>
+                                                            <button onClick={() => handleDeleteWallet(w.id)} className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg"><Trash2 className="w-3.5 h-3.5" /></button>
+                                                        </>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div className="relative z-10">
-                                                <p className="text-xs text-slate-500 mb-1">Total Saldo</p>
-                                                <p className="text-xl font-black text-slate-900 tracking-tight">{formatIDR(w.balance)}</p>
+                                            <div className="relative z-10 flex items-end justify-between mt-4">
+                                                <div>
+                                                    <p className="text-xs text-slate-500 mb-1">Total Saldo</p>
+                                                    <p className="text-xl font-black text-slate-900 tracking-tight">{formatIDR(w.balance)}</p>
+                                                </div>
+                                                {canTopUp && (
+                                                    <button 
+                                                        onClick={() => {
+                                                            setTopUpData({ walletId: w.id, amount: '' });
+                                                            setShowTopUpModal(true);
+                                                        }} 
+                                                        className="px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 rounded-lg flex items-center gap-1 transition-colors"
+                                                    >
+                                                        <Plus className="w-3 h-3" /> Top Up
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
                                     )
@@ -2944,52 +2611,125 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                     </div>
                                 </div>
 
-                                <div className="space-y-6">
-                                    {Object.entries(
-                                        transactions
+<div className="space-y-6">
+                                    {(() => {
+                                        const walletTxPerPage = 15;
+                                        const filteredWalletTxs = transactions
+                                            .filter(t => {
+                                                const d = new Date(t.date);
+                                                return d.getMonth() + 1 === selectedMonth && d.getFullYear() === selectedYear;
+                                            })
                                             .filter(t => (walletSearch ? t.description.toLowerCase().includes(walletSearch.toLowerCase()) : true))
                                             .filter(t => (walletCategoryFilter !== "all" ? t.categoryId == walletCategoryFilter : true))
-                                            .sort((a, b) => new Date(b.date) - new Date(a.date))
-                                            .reduce((groups, t) => {
-                                                const date = t.date;
-                                                if (!groups[date]) groups[date] = [];
-                                                groups[date].push(t);
-                                                return groups;
-                                            }, {})
-                                    ).map(([date, txs]) => (
-                                        <div key={date}>
-                                            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{new Date(date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</h4>
-                                            <div className="space-y-2">
-                                                {txs.map(t => {
-                                                    const cat = categories.find(c => c.id == t.categoryId);
-                                                    const wal = wallets.find(w => w.id == t.walletId);
-                                                    return (
-                                                        <div key={t.id} className="bg-white p-4 rounded-2xl border border-slate-100 flex items-center justify-between gap-4 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:border-blue-200 transition-colors">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${cat?.color || 'bg-slate-400'}`}>
-                                                                    <div className="text-xs font-bold">{cat?.name?.charAt(0) || '?'}</div>
-                                                                </div>
-                                                                <div>
-                                                                    <h5 className="font-bold text-sm text-slate-900">{t.description}</h5>
-                                                                    <p className="text-[10px] font-bold text-slate-500">{cat?.name || 'Tanpa Kategori'} • {wal?.name || 'Tanpa Dompet'}</p>
-                                                                </div>
-                                                            </div>
-                                                            <div className={`font-bold ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                                {t.type === 'income' ? '+' : '-'}{formatIDR(t.amount)}
-                                                            </div>
+                                            .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                                        const totalWalletPages = Math.ceil(filteredWalletTxs.length / walletTxPerPage) || 1;
+                                        // Pastikan current page tidak melebihi total
+                                        const currentPg = Math.min(walletTxPage, totalWalletPages);
+                                        const paginatedWalletTxs = filteredWalletTxs.slice((currentPg - 1) * walletTxPerPage, currentPg * walletTxPerPage);
+                                        
+                                        if (filteredWalletTxs.length === 0) {
+                                            return (
+                                                <div className="text-center py-10 bg-white rounded-2xl border border-dashed border-slate-200">
+                                                    <Wallet className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                                                    <p className="text-slate-500 font-bold">Tidak ada transaksi yang cocok di bulan ini.</p>
+                                                </div>
+                                            );
+                                        }
+
+                                        const grouped = paginatedWalletTxs.reduce((groups, t) => {
+                                            const date = t.date;
+                                            if (!groups[date]) groups[date] = [];
+                                            groups[date].push(t);
+                                            return groups;
+                                        }, {});
+
+                                        return (
+                                            <>
+                                                {Object.entries(grouped).map(([date, txs]) => (
+                                                    <div key={date}>
+                                                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{new Date(date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</h4>
+                                                        <div className="space-y-2">
+                                                            {txs.map(t => {
+                                                                const cat = categories.find(c => c.id == t.categoryId);
+                                                                const wal = wallets.find(w => w.id == t.walletId);
+                                                                const isIncome = t.type === 'income';
+                                                                return (
+                                                                    <div key={t.id} className="bg-white p-4 rounded-2xl border border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:border-blue-200 transition-colors group">
+                                                                        <div className="flex items-center gap-3">
+                                                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${isIncome ? 'bg-emerald-500' : (cat?.color || 'bg-slate-400')} shrink-0`}>
+                                                                                <div className="text-xs font-bold">{isIncome ? '+' : (cat?.name?.charAt(0) || '?')}</div>
+                                                                            </div>
+                                                                            <div>
+                                                                                <h5 className="font-bold text-sm text-slate-900">{t.description}</h5>
+                                                                                <p className="text-[10px] font-bold text-slate-500">{isIncome ? 'Pemasukan' : (cat?.name || 'Tanpa Kategori')} • {wal?.name || 'Tanpa Dompet'}</p>
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex items-center justify-between sm:justify-end gap-4 border-t border-slate-50 pt-2 sm:pt-0 sm:border-0">
+                                                                            <div className={`font-bold ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                                                {t.type === 'income' ? '+' : '-'}{formatIDR(t.amount)}
+                                                                            </div>
+                                                                            <div className="flex items-center gap-1.5">
+                                                                                <button
+                                                                                    onClick={() => handleOpenEdit(t)}
+                                                                                    className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"
+                                                                                    title="Ubah Transaksi"
+                                                                                >
+                                                                                    <Edit className="w-3.5 h-3.5" />
+                                                                                </button>
+                                                                                <button
+                                                                                    onClick={() => handleDeleteTransaction(t.id, t.type, t.amount, t.walletId)}
+                                                                                    className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg"
+                                                                                    title="Hapus Transaksi"
+                                                                                >
+                                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                                </button>
+                                                                            </div>
+                                                                        </div>
+                                                                    </div>
+                                                                )
+                                                            })}
                                                         </div>
-                                                    )
-                                                })}
-                                            </div>
-                                        </div>
-                                    ))}
-                                    
-                                    {transactions.filter(t => (walletSearch ? t.description.toLowerCase().includes(walletSearch.toLowerCase()) : true)).filter(t => (walletCategoryFilter !== "all" ? t.categoryId == walletCategoryFilter : true)).length === 0 && (
-                                        <div className="text-center py-10 bg-white rounded-2xl border border-dashed border-slate-200">
-                                            <Wallet className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                                            <p className="text-slate-500 font-bold">Tidak ada transaksi yang cocok.</p>
-                                        </div>
-                                    )}
+                                                    </div>
+                                                ))}
+
+                                                {/* Pagination Controls */}
+                                                {totalWalletPages > 1 && (
+                                                    <div className="flex items-center justify-center pt-6 gap-2">
+                                                        <button
+                                                            onClick={() => setWalletTxPage(p => Math.max(1, p - 1))}
+                                                            disabled={currentPg === 1}
+                                                            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 shadow-sm"
+                                                        >
+                                                            <ChevronLeft className="w-4 h-4" />
+                                                        </button>
+                                                        <div className="flex gap-1.5">
+                                                            {Array.from({ length: totalWalletPages }, (_, i) => i + 1).map(pageNum => (
+                                                                <button
+                                                                    key={pageNum}
+                                                                    onClick={() => setWalletTxPage(pageNum)}
+                                                                    className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${
+                                                                        currentPg === pageNum
+                                                                            ? "bg-blue-600 text-white shadow-md shadow-blue-200"
+                                                                            : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                                                                    }`}
+                                                                >
+                                                                    {pageNum}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                        <button
+                                                            onClick={() => setWalletTxPage(p => Math.min(totalWalletPages, p + 1))}
+                                                            disabled={currentPg === totalWalletPages}
+                                                            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 shadow-sm"
+                                                        >
+                                                            <ChevronRightIcon className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         </div>
@@ -3003,24 +2743,29 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                     {/* Profile Header Card */}
                                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-6">
                                         <div className="p-5 sm:p-6 flex items-center space-x-4 border-b border-slate-100">
-                                            <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-2xl shadow-sm shrink-0">
-                                                {currentUser?.name
-                                                    ? currentUser.name
-                                                          .charAt(0)
-                                                          .toUpperCase()
-                                                    : "U"}
+                                            <div className="relative">
+                                                {currentUser?.avatar ? (
+                                                    <img src={`/storage/${currentUser.avatar}`} alt="Avatar" className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm" />
+                                                ) : (
+                                                    <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-2xl shadow-sm shrink-0">
+                                                        {currentUser?.name
+                                                            ? currentUser.name
+                                                                  .charAt(0)
+                                                                  .toUpperCase()
+                                                            : "U"}
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="flex-1 min-w-0">
-                                                <h2 className="text-lg font-bold text-slate-900 truncate">
-                                                    {currentUser?.name ||
-                                                        "User"}
+                                                <h2 className="text-lg font-bold text-slate-900 truncate flex items-center gap-1.5">
+                                                    {currentUser?.name || "User"}
+                                                    <BadgeCheck className="w-5 h-5 text-white fill-blue-500 flex-shrink-0" />
                                                 </h2>
                                                 <p className="text-sm text-slate-500 truncate">
-                                                    {currentUser?.email ||
-                                                        "user@example.com"}
+                                                    {currentUser?.email || "user@example.com"}
                                                 </p>
                                             </div>
-                                            <button className="text-blue-600 hover:text-blue-700 bg-blue-50 p-2 rounded-xl transition-colors">
+                                            <button onClick={() => setActiveSettingsTab("edit_profile")} className="text-blue-600 hover:text-blue-700 bg-blue-50 p-2 rounded-xl transition-colors">
                                                 <Edit className="w-4 h-4" />
                                             </button>
                                         </div>
@@ -3083,11 +2828,7 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                         )}
 
                                         <button
-                                            onClick={() =>
-                                                alert(
-                                                    "Fitur Keamanan akan segera hadir!",
-                                                )
-                                            }
+                                            onClick={() => setActiveSettingsTab("security")}
                                             className="w-full flex items-center justify-between p-4 hover:bg-slate-50 border-b border-slate-100 transition-colors"
                                         >
                                             <div className="flex items-center space-x-4">
@@ -3129,8 +2870,8 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                             <ChevronRight className="w-4 h-4 text-slate-300" />
                                         </button>
 
-                                        {/* Reset Seluruh Data (Hanya untuk Admin/Bendahara agar aman) */}
-                                        {(currentUser?.role === "Administrator" || currentUser?.role === "Bendahara") && (
+                                        {/* Reset Seluruh Data (Hanya untuk yang memiliki permission reset_data) */}
+                                        {hasPermission("reset_data") && (
                                             <button
                                                 onClick={() => setIsResetModalOpen(true)}
                                                 className="w-full flex items-center justify-between p-4 hover:bg-slate-50 border-b border-slate-100 transition-colors group"
@@ -3501,6 +3242,277 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                             </div>
                                         </div>
                                     )}
+                                </div>
+                            )}
+
+                            {/* TAB: EDIT PROFILE */}
+                            {activeSettingsTab === "edit_profile" && (
+                                <div className="space-y-6 animate-fadeIn">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                        <button
+                                            onClick={() => setActiveSettingsTab("profile")}
+                                            className="flex items-center space-x-2 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors w-fit"
+                                        >
+                                            <ArrowLeft className="w-4 h-4" />
+                                            <span>Kembali</span>
+                                        </button>
+                                        <h2 className="text-2xl font-black text-slate-900 flex items-center space-x-3">
+                                            <User className="w-7 h-7 text-blue-600" />
+                                            <span>Ubah Profil</span>
+                                        </h2>
+                                    </div>
+
+                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                        <form onSubmit={submitProfileUpdate} className="p-5 sm:p-8 space-y-8">
+                                            {/* Photo Profile Section */}
+                                            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
+                                                <div className="relative group cursor-pointer">
+                                                    <label htmlFor="avatar-upload" className="block cursor-pointer">
+                                                        {profileData.avatar ? (
+                                                            <img src={URL.createObjectURL(profileData.avatar)} alt="Avatar" className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover shadow-md border-4 border-white" />
+                                                        ) : currentUser?.avatar ? (
+                                                            <img src={`/storage/${currentUser.avatar}`} alt="Avatar" className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover shadow-md border-4 border-white" />
+                                                        ) : (
+                                                            <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-4xl shadow-md border-4 border-white">
+                                                                {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
+                                                            </div>
+                                                        )}
+                                                        <div className="absolute bottom-0 right-0 w-8 h-8 sm:w-10 sm:h-10 bg-white rounded-full border border-slate-200 shadow-lg flex items-center justify-center text-slate-600 hover:text-blue-600 transition-colors group-hover:scale-110">
+                                                            <Upload className="w-4 h-4 sm:w-5 sm:h-5" />
+                                                        </div>
+                                                    </label>
+                                                    <input 
+                                                        id="avatar-upload" 
+                                                        type="file" 
+                                                        accept=".jpg,.jpeg,.png" 
+                                                        className="hidden" 
+                                                        onChange={(e) => setProfileData('avatar', e.target.files[0])}
+                                                    />
+                                                </div>
+                                                <div className="text-center sm:text-left flex-1 pt-2">
+                                                    <h3 className="font-bold text-slate-800 text-lg mb-1">Foto Profil</h3>
+                                                    <p className="text-sm text-slate-500 max-w-md">
+                                                        Gunakan foto dengan rasio 1:1. Ukuran maksimal 2MB. (Format: JPG, PNG).
+                                                    </p>
+                                                    {profileErrors.avatar && <p className="text-xs text-rose-500 mt-1.5">{profileErrors.avatar}</p>}
+                                                </div>
+                                            </div>
+
+                                            <hr className="border-slate-100" />
+
+                                            {/* Form Fields */}
+                                            <div className="space-y-5">
+                                                <div>
+                                                    <label className="block text-sm font-bold text-slate-700 mb-2">Nama Lengkap</label>
+                                                    <div className="relative">
+                                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                                                            <User className="w-5 h-5" />
+                                                        </div>
+                                                        <input 
+                                                            type="text" 
+                                                            value={profileData.name} 
+                                                            onChange={e => setProfileData('name', e.target.value)}
+                                                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none" 
+                                                            placeholder="Masukkan nama lengkap Anda"
+                                                        />
+                                                    </div>
+                                                    {profileErrors.name && <p className="text-xs text-rose-500 mt-1.5">{profileErrors.name}</p>}
+                                                </div>
+                                                
+                                                <div>
+                                                    <label className="block text-sm font-bold text-slate-700 mb-2">Alamat Email</label>
+                                                    <div className="relative">
+                                                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                                                            <Mail className="w-5 h-5" />
+                                                        </div>
+                                                        <input 
+                                                            type="email" 
+                                                            value={profileData.email} 
+                                                            onChange={e => setProfileData('email', e.target.value)}
+                                                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none" 
+                                                            placeholder="contoh@email.com"
+                                                        />
+                                                    </div>
+                                                    {profileErrors.email && <p className="text-xs text-rose-500 mt-1.5">{profileErrors.email}</p>}
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-4 flex justify-end">
+                                                <button disabled={processingProfile} type="submit" className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center space-x-2">
+                                                    {processingProfile ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                                                    <span>Simpan Perubahan</span>
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* TAB: SECURITY */}
+                            {activeSettingsTab === "security" && (
+                                <div className="space-y-6 animate-fadeIn">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                        <button
+                                            onClick={() => setActiveSettingsTab("profile")}
+                                            className="flex items-center space-x-2 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors w-fit"
+                                        >
+                                            <ArrowLeft className="w-4 h-4" />
+                                            <span>Kembali</span>
+                                        </button>
+                                        <h2 className="text-2xl font-black text-slate-900 flex items-center space-x-3">
+                                            <Shield className="w-7 h-7 text-blue-600" />
+                                            <span>Keamanan & Akun</span>
+                                        </h2>
+                                    </div>
+
+                                    {/* Ubah Password Form */}
+                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                        <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center space-x-3">
+                                            <KeyRound className="w-6 h-6 text-slate-400" />
+                                            <h3 className="font-bold text-slate-800">Ubah Password</h3>
+                                        </div>
+                                        <form onSubmit={submitPasswordUpdate} className="p-5 sm:p-6 space-y-6">
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Password Saat Ini</label>
+                                                <div className="relative">
+                                                    <input 
+                                                        type={showPassword ? "text" : "password"}
+                                                        value={pwdData.current_password}
+                                                        onChange={e => setPwdData('current_password', e.target.value)}
+                                                        className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                                                        placeholder="Masukkan password lama"
+                                                    />
+                                                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                                                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                                    </button>
+                                                </div>
+                                                {pwdErrors.current_password && <p className="text-xs text-rose-500 mt-1">{pwdErrors.current_password}</p>}
+                                            </div>
+
+                                            <div>
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <label className="block text-xs font-bold text-slate-600 uppercase">Password Baru</label>
+                                                    <button type="button" onClick={generatePassword} className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center space-x-1 bg-blue-50 px-2 py-1 rounded-lg">
+                                                        <Sparkles className="w-3.5 h-3.5" />
+                                                        <span>Generate</span>
+                                                    </button>
+                                                </div>
+                                                <div className="relative">
+                                                    <input 
+                                                        type={showPassword ? "text" : "password"}
+                                                        value={pwdData.password}
+                                                        onChange={e => setPwdData('password', e.target.value)}
+                                                        className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                                                        placeholder="Masukkan password baru"
+                                                    />
+                                                </div>
+                                                {pwdErrors.password && <p className="text-xs text-rose-500 mt-1">{pwdErrors.password}</p>}
+                                                
+                                                {/* Password Strength Indicator */}
+                                                {pwdData.password && (() => {
+                                                    const strength = evaluatePasswordStrength(pwdData.password);
+                                                    return (
+                                                        <div className="mt-3">
+                                                            <div className="flex justify-between items-center mb-1">
+                                                                <span className="text-xs font-bold text-slate-500">Kekuatan Password</span>
+                                                                <span className={`text-xs font-bold ${strength.color.replace('bg-', 'text-')}`}>{strength.label}</span>
+                                                            </div>
+                                                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                                                                <div className={`h-full ${strength.color} transition-all duration-300`} style={{ width: strength.width }}></div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+                                                
+                                                {/* Password Rules */}
+                                                <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                                    <div className={`flex items-center space-x-1.5 text-xs font-bold ${/[A-Z]/.test(pwdData.password) ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                                        <CheckCircle className="w-3.5 h-3.5" />
+                                                        <span>Huruf Besar</span>
+                                                    </div>
+                                                    <div className={`flex items-center space-x-1.5 text-xs font-bold ${/[0-9]/.test(pwdData.password) ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                                        <CheckCircle className="w-3.5 h-3.5" />
+                                                        <span>Angka</span>
+                                                    </div>
+                                                    <div className={`flex items-center space-x-1.5 text-xs font-bold ${/[^A-Za-z0-9]/.test(pwdData.password) ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                                        <CheckCircle className="w-3.5 h-3.5" />
+                                                        <span>Simbol (!@#)</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Konfirmasi Password</label>
+                                                <div className="relative">
+                                                    <input 
+                                                        type={showPassword ? "text" : "password"}
+                                                        value={pwdData.password_confirmation}
+                                                        onChange={e => setPwdData('password_confirmation', e.target.value)}
+                                                        className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                                                        placeholder="Ulangi password baru"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="pt-2 flex justify-end">
+                                                <button disabled={processingPwd} type="submit" className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-md hover:bg-slate-800 transition-colors disabled:opacity-50 flex items-center space-x-2">
+                                                    {processingPwd ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                                                    <span>Update Password</span>
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </div>
+
+                                    {/* Active Devices Info */}
+                                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                        <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center space-x-3">
+                                            <Monitor className="w-6 h-6 text-slate-400" />
+                                            <h3 className="font-bold text-slate-800">Sesi & Perangkat Aktif</h3>
+                                        </div>
+                                        <div className="p-5 sm:p-6 divide-y divide-slate-100">
+                                            {activeSessions && activeSessions.length > 0 ? activeSessions.map((session, i) => (
+                                                <div key={i} className="py-4 first:pt-0 last:pb-0 flex items-start justify-between">
+                                                    <div className="flex space-x-4">
+                                                        <div className="mt-1">
+                                                            {session.user_agent?.toLowerCase().includes('mobile') ? (
+                                                                <Smartphone className="w-6 h-6 text-slate-400" />
+                                                            ) : (
+                                                                <Monitor className="w-6 h-6 text-slate-400" />
+                                                            )}
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center space-x-2">
+                                                                <h4 className="text-sm font-bold text-slate-800">
+                                                                    {(() => {
+                                                                        const agent = session.user_agent || "";
+                                                                        let browser = "Browser";
+                                                                        let os = "OS";
+                                                                        if (agent.includes("Chrome")) browser = "Google Chrome";
+                                                                        else if (agent.includes("Firefox")) browser = "Firefox";
+                                                                        else if (agent.includes("Safari")) browser = "Safari";
+                                                                        
+                                                                        if (agent.includes("Mac")) os = "Mac";
+                                                                        else if (agent.includes("Windows")) os = "Windows";
+                                                                        else if (agent.includes("Linux")) os = "Linux";
+                                                                        else if (agent.includes("Android")) os = "Android";
+                                                                        else if (agent.includes("iPhone")) os = "iPhone";
+                                                                        
+                                                                        return `${os} - ${browser}`;
+                                                                    })()}
+                                                                </h4>
+                                                                {session.is_current && (
+                                                                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase rounded-md">Saat Ini</span>
+                                                                )}
+                                                            </div>
+                                                            <p className="text-xs text-slate-500 mt-1">{session.ip_address} • Aktif {session.last_activity}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )) : (
+                                                <p className="text-sm text-slate-500 italic">Informasi sesi tidak tersedia (driver session bukan database).</p>
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             )}
 
@@ -4345,7 +4357,7 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                             Peringatan Penting!
                                         </h4>
                                         <p className="text-xs text-rose-600 leading-relaxed font-medium">
-                                            Tindakan ini akan menghapus semua transaksi pengeluaran & pemasukan secara permanen pada bulan yang dipilih serta mereset seluruh data kategori & kantong ke data bawaan. Akun pengguna dan hak akses tetap aman.
+                                            Tindakan ini akan menghapus semua transaksi pengeluaran & pemasukan secara permanen pada bulan yang dipilih. Jika memilih Semua Role, seluruh data kategori & kantong juga akan dikembalikan ke data bawaan. Akun pengguna dan hak akses tetap aman.
                                         </p>
                                     </div>
                                 </div>
@@ -4406,6 +4418,24 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                     </div>
                                 </div>
  
+                                {/* Role Selection */}
+                                <div className="space-y-3 mt-4">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                                            Pilih Role (Opsional)
+                                        </span>
+                                    </div>
+                                    <select
+                                        value={selectedResetRole}
+                                        onChange={(e) => setSelectedResetRole(e.target.value)}
+                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+                                    >
+                                        <option value="all">Semua Role</option>
+                                        <option value="Suami">Suami</option>
+                                        <option value="Istri">Istri</option>
+                                    </select>
+                                </div>
+
                                 {/* Modal Actions */}
                                 <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
                                     <button
@@ -4460,7 +4490,7 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                             />
                         </button>
                     )}
-                    {hasPermission("kelola_dompet") && (
+                    {(hasPermission("kelola_dompet") || hasPermission("lihat_dompet")) && (
                         <button
                             onClick={() => {
                                 setActiveTab("dompet");
@@ -4508,17 +4538,22 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                     <button
                         onClick={() => {
                             setActiveTab("profile");
+                            setActiveSettingsTab("profile");
                             setIsAddingTx(false);
                         }}
                         className="flex flex-col items-center justify-center p-2 transition-transform active:scale-95"
                     >
-                        <div
-                            className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${activeTab === "profile" ? "bg-blue-600 text-white shadow-md shadow-blue-200" : "bg-slate-200 text-slate-500"}`}
-                        >
-                            {currentUser?.name
-                                ? currentUser.name.charAt(0).toUpperCase()
-                                : "U"}
-                        </div>
+                        {currentUser?.avatar ? (
+                            <img src={`/storage/${currentUser.avatar}`} alt="Avatar" className={`w-7 h-7 rounded-full object-cover border-2 ${activeTab === "profile" ? "border-blue-500 shadow-md shadow-blue-200" : "border-transparent"}`} />
+                        ) : (
+                            <div
+                                className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${activeTab === "profile" ? "bg-blue-600 text-white shadow-md shadow-blue-200" : "bg-slate-200 text-slate-500"}`}
+                            >
+                                {currentUser?.name
+                                    ? currentUser.name.charAt(0).toUpperCase()
+                                    : "U"}
+                            </div>
+                        )}
                     </button>
                 </div>
             </nav>
@@ -4603,6 +4638,205 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                     <ArrowUp className="w-5 h-5" />
                 </button>
             </div>
+
+                            {/* MODAL EDIT DATA TRANSAKSI (Sleek Overlay) */}
+                            {editingTx && (
+                                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                                    <div className="bg-white rounded-2xl border border-slate-150 max-w-lg w-full p-6 shadow-xl space-y-4 animate-scaleUp">
+                                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                                            <h3 className="font-bold text-slate-900 text-base">
+                                                Ubah Transaksi
+                                            </h3>
+                                            <button
+                                                onClick={() =>
+                                                    setEditingTx(null)
+                                                }
+                                                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all"
+                                            >
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+
+                                        <form
+                                             onSubmit={handleSaveEditTransaction}
+                                             className="space-y-4"
+                                         >
+                                             {/* Nominal (Rp) - Readonly / Disabled with Format Rupiah */}
+                                             <div>
+                                                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
+                                                     Nominal (Rp)
+                                                 </label>
+                                                 <input
+                                                     type="text"
+                                                     value={editingTx.amount ? `Rp ${parseInt(editingTx.amount.toString().replace(/[^0-9]/g, "") || 0).toLocaleString('id-ID')}` : ""}
+                                                     disabled
+                                                     className="w-full px-3 py-2 border border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed rounded-lg text-xs font-bold"
+                                                 />
+                                             </div>
+
+                                             {/* Kategori & Dompet */}
+                                             {editingTx.type !== "income" && (
+                                                 <div className="grid grid-cols-2 gap-4">
+                                                     <div>
+                                                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
+                                                             Kategori
+                                                         </label>
+                                                         <select
+                                                             value={
+                                                                 editingTx.categoryId
+                                                             }
+                                                             onChange={(e) =>
+                                                                 setEditingTx({
+                                                                     ...editingTx,
+                                                                     categoryId:
+                                                                         e.target
+                                                                             .value,
+                                                                 })
+                                                             }
+                                                             className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white text-slate-800 focus:ring-1 focus:ring-blue-500"
+                                                         >
+                                                             {categories.map((c) => (
+                                                                 <option
+                                                                     key={c.id}
+                                                                     value={c.id}
+                                                                 >
+                                                                     {c.name}
+                                                                 </option>
+                                                             ))}
+                                                         </select>
+                                                     </div>
+
+                                                     <div>
+                                                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
+                                                             Dompet
+                                                         </label>
+                                                         <select
+                                                             value={
+                                                                 editingTx.walletId
+                                                             }
+                                                             onChange={(e) =>
+                                                                 setEditingTx({
+                                                                     ...editingTx,
+                                                                     walletId:
+                                                                         e.target
+                                                                             .value,
+                                                                 })
+                                                             }
+                                                             className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white text-slate-800 focus:ring-1 focus:ring-blue-500"
+                                                         >
+                                                             {wallets.map((w) => (
+                                                                 <option
+                                                                     key={w.id}
+                                                                     value={w.id}
+                                                                 >
+                                                                     {w.name}
+                                                                 </option>
+                                                             ))}
+                                                         </select>
+                                                     </div>
+                                                 </div>
+                                             )}
+
+                                             {/* Tanggal */}
+                                             <div>
+                                                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
+                                                     Tanggal
+                                                 </label>
+                                                 <input
+                                                     type="date"
+                                                     value={editingTx.date}
+                                                     onChange={(e) =>
+                                                         setEditingTx({
+                                                             ...editingTx,
+                                                             date: e.target
+                                                                 .value,
+                                                         })
+                                                     }
+                                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-800 focus:ring-1 focus:ring-blue-500"
+                                                 />
+                                             </div>
+
+                                             {/* Deskripsi (at the bottom) */}
+                                             <div>
+                                                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
+                                                     Deskripsi
+                                                 </label>
+                                                 <input
+                                                     type="text"
+                                                     value={
+                                                         editingTx.description
+                                                     }
+                                                     onChange={(e) =>
+                                                         setEditingTx({
+                                                             ...editingTx,
+                                                             description:
+                                                                 e.target.value,
+                                                         })
+                                                     }
+                                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:ring-1 focus:ring-blue-500 text-slate-800"
+                                                 />
+                                             </div>
+
+                                             {/* Anggota (Hidden input, because member is determined by active login session) */}
+                                             <input
+                                                 type="hidden"
+                                                 value={editingTx.memberId}
+                                             />
+
+                                             <div className="flex justify-end space-x-2 pt-4 border-t border-slate-100">
+                                                 <button
+                                                     type="button"
+                                                     onClick={() =>
+                                                         setEditingTx(null)
+                                                     }
+                                                     className="px-4 py-2 border border-slate-200 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-50 transition-all"
+                                                 >
+                                                     Batal
+                                                 </button>
+                                                 <button
+                                                     type="submit"
+                                                     className="px-5 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-100 transition-all"
+                                                 >
+                                                     Simpan Perubahan
+                                                 </button>
+                                             </div>
+                                         </form>
+                                    </div>
+                                </div>
+                            )}
+            {/* MODAL TOP UP */}
+            {showTopUpModal && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl border border-slate-150 max-w-sm w-full p-6 shadow-xl animate-scaleUp">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                            <h3 className="font-bold text-slate-900 text-base">Top Up Kantong</h3>
+                            <button onClick={() => setShowTopUpModal(false)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400">
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <form onSubmit={handleTopUpSubmit} className="space-y-4">
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Nominal Top Up</label>
+                                <input
+                                    type="text"
+                                    value={topUpData.amount ? `Rp ${parseInt(topUpData.amount.toString().replace(/[^0-9]/g, "") || 0).toLocaleString('id-ID')}` : ""}
+                                    onChange={(e) => {
+                                        const val = e.target.value.replace(/[^0-9]/g, "");
+                                        setTopUpData({ ...topUpData, amount: val });
+                                    }}
+                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50/50"
+                                    placeholder="Rp 0"
+                                    required
+                                />
+                            </div>
+                            <div className="flex gap-2 pt-2">
+                                <button type="button" onClick={() => setShowTopUpModal(false)} className="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold text-sm rounded-xl hover:bg-slate-200">Batal</button>
+                                <button type="submit" className="flex-1 py-2.5 bg-emerald-600 text-white font-bold text-sm rounded-xl hover:bg-emerald-700 shadow-md shadow-emerald-200">Top Up</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

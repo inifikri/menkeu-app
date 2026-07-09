@@ -53,6 +53,19 @@ class DashboardController extends Controller
                     'memberId' => (string) $t->user_id,
                 ];
             }),
+            'activeSessions' => \Illuminate\Support\Facades\DB::table('sessions')
+                ->where('user_id', auth()->id())
+                ->orderBy('last_activity', 'desc')
+                ->get()
+                ->map(function($s) {
+                    return [
+                        'id' => $s->id,
+                        'ip_address' => $s->ip_address,
+                        'user_agent' => $s->user_agent,
+                        'last_activity' => \Carbon\Carbon::createFromTimestamp($s->last_activity)->diffForHumans(),
+                        'is_current' => $s->id === request()->session()->getId(),
+                    ];
+                }),
         ]);
     }
 }

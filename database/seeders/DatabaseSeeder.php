@@ -26,39 +26,30 @@ class DatabaseSeeder extends Seeder
 
         // 1. Seed Users
         $admin = User::create([
-            'name' => 'Ayah (Admin)',
-            'email' => 'ayah@finkeluarga.com',
+            'name' => 'Admin Fikrikeluarga',
+            'email' => 'admin@fikrifamily.com',
             'password' => bcrypt('123456'),
-            'role' => 'Administrator',
+            'role' => 'Admin',
             'avatarColor' => 'bg-indigo-600',
-            'permissions' => ['kelola_anggota', 'kelola_kategori', 'catat_transaksi', 'lihat_laporan', 'ekspor_data', 'kelola_dompet', 'atur_budget'],
+            'permissions' => ['kelola_dompet', 'kelola_anggota', 'lihat_log', 'reset_data', 'lihat_laporan', 'atur_budget', 'ekspor_data', 'kelola_kategori'],
         ]);
 
-        $ibu = User::create([
-            'name' => 'Ibu',
-            'email' => 'ibu@finkeluarga.com',
+        $suami = User::create([
+            'name' => 'Suami',
+            'email' => 'fhm@fikrifamily.com',
+            'password' => bcrypt('123456'),
+            'role' => 'Suami',
+            'avatarColor' => 'bg-blue-500',
+            'permissions' => ['lihat_dompet', 'topup_dompet', 'catat_transaksi', 'kelola_kategori', 'lihat_laporan', 'atur_budget', 'ekspor_data'],
+        ]);
+
+        $istri = User::create([
+            'name' => 'Istri',
+            'email' => 'adhs@fikrifamily.com',
             'password' => bcrypt('123456'),
             'role' => 'Istri',
             'avatarColor' => 'bg-pink-500',
-            'permissions' => ['catat_transaksi', 'lihat_laporan', 'kelola_kategori', 'atur_budget'],
-        ]);
-
-        $kakak = User::create([
-            'name' => 'Kakak',
-            'email' => 'kakak@finkeluarga.com',
-            'password' => bcrypt('123456'),
-            'role' => 'Anak 1',
-            'avatarColor' => 'bg-blue-400',
-            'permissions' => ['catat_transaksi', 'lihat_laporan'],
-        ]);
-
-        $adik = User::create([
-            'name' => 'Adik',
-            'email' => 'adik@finkeluarga.com',
-            'password' => bcrypt('123456'),
-            'role' => 'Anak 2',
-            'avatarColor' => 'bg-emerald-400',
-            'permissions' => ['catat_transaksi'],
+            'permissions' => ['lihat_dompet', 'topup_dompet', 'catat_transaksi', 'kelola_kategori', 'lihat_laporan', 'atur_budget', 'ekspor_data'],
         ]);
 
         // 2. Seed Categories with logical monthly budgets
@@ -113,26 +104,26 @@ class DatabaseSeeder extends Seeder
                 'user_id' => $admin->id
             ]);
 
-            // Day 2: Ayah bagi/transfer gaji ke dompet Ibu sebesar Rp 3.000.000 untuk kebutuhan dapur
-            // Catat sebagai expense di dompet Ayah, dan income di dompet Ibu
+            // Day 2: Suami bagi/transfer gaji ke dompet Istri sebesar Rp 3.000.000 untuk kebutuhan dapur
+            // Catat sebagai expense di dompet Suami, dan income di dompet Istri
             Transaction::create([
                 'date' => $firstOfMonth->copy()->day(2)->format('Y-m-d'),
-                'description' => "Transfer Uang Dapur Bulanan ke Ibu",
+                'description' => "Transfer Uang Dapur Bulanan ke Istri",
                 'amount' => 3000000,
                 'type' => 'expense',
                 'category_id' => $catModels['Lainnya']->id,
                 'wallet_id' => $bca->id,
-                'user_id' => $admin->id
+                'user_id' => $suami->id
             ]);
 
             Transaction::create([
                 'date' => $firstOfMonth->copy()->day(2)->format('Y-m-d'),
-                'description' => "Terima Uang Dapur Bulanan dari Ayah",
+                'description' => "Terima Uang Dapur Bulanan dari Suami",
                 'amount' => 3000000,
                 'type' => 'income',
                 'category_id' => $catModels['Lainnya']->id,
                 'wallet_id' => $mandiri->id,
-                'user_id' => $ibu->id
+                'user_id' => $istri->id
             ]);
 
             // Weekly expenditures: Dapur (Ibu), Bensin (Ayah), Makan (Ibu), Jajan (Kakak/Adik)
@@ -145,7 +136,7 @@ class DatabaseSeeder extends Seeder
                     continue;
                 }
 
-                // 1. Ibu spends on Kebutuhan Dapur (weekly, e.g. Rp 600,000 - Rp 750,000)
+                // 1. Istri spends on Kebutuhan Dapur (weekly, e.g. Rp 600,000 - Rp 750,000)
                 $dapurAmt = 600000 + ($week * 40000) + rand(-20000, 20000);
                 Transaction::create([
                     'date' => $firstOfMonth->copy()->day(3 + $dayOfWeekOffset)->format('Y-m-d'),
@@ -154,10 +145,10 @@ class DatabaseSeeder extends Seeder
                     'type' => 'expense',
                     'category_id' => $catModels['Kebutuhan Dapur']->id,
                     'wallet_id' => $mandiri->id,
-                    'user_id' => $ibu->id
+                    'user_id' => $istri->id
                 ]);
 
-                // 2. Ayah spends on Bensin (weekly, e.g. Rp 100,000)
+                // 2. Suami spends on Bensin (weekly, e.g. Rp 100,000)
                 Transaction::create([
                     'date' => $firstOfMonth->copy()->day(4 + $dayOfWeekOffset)->format('Y-m-d'),
                     'description' => "Isi Pertamax Motor & Mobil - Minggu " . $week,
@@ -165,7 +156,7 @@ class DatabaseSeeder extends Seeder
                     'type' => 'expense',
                     'category_id' => $catModels['Bensin']->id,
                     'wallet_id' => $bca->id,
-                    'user_id' => $admin->id
+                    'user_id' => $suami->id
                 ]);
 
                 // 3. Makan Keluarga (weekly, e.g. Rp 300,000 - Rp 450,000)
@@ -177,18 +168,18 @@ class DatabaseSeeder extends Seeder
                     'type' => 'expense',
                     'category_id' => $catModels['Makan']->id,
                     'wallet_id' => $tunai->id,
-                    'user_id' => $ibu->id
+                    'user_id' => $istri->id
                 ]);
 
-                // 4. Jajan Anak (weekly, e.g. Rp 50,000)
+                // 4. Jajan (weekly, e.g. Rp 50,000)
                 Transaction::create([
                     'date' => $firstOfMonth->copy()->day(6 + $dayOfWeekOffset)->format('Y-m-d'),
-                    'description' => "Uang Jajan Sekolah Kakak - Minggu " . $week,
+                    'description' => "Uang Jajan - Minggu " . $week,
                     'amount' => 60000,
                     'type' => 'expense',
                     'category_id' => $catModels['Jajan']->id,
                     'wallet_id' => $tunai->id,
-                    'user_id' => $kakak->id
+                    'user_id' => $suami->id
                 ]);
             }
         }

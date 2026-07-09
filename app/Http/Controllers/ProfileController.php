@@ -16,12 +16,9 @@ class ProfileController extends Controller
     /**
      * Display the user's profile form.
      */
-    public function edit(Request $request): Response
+    public function edit(Request $request): RedirectResponse
     {
-        return Inertia::render('Profile/Edit', [
-            'mustVerifyEmail' => $request->user() instanceof MustVerifyEmail,
-            'status' => session('status'),
-        ]);
+        return Redirect::route('dashboard');
     }
 
     /**
@@ -29,15 +26,26 @@ class ProfileController extends Controller
      */
     public function update(ProfileUpdateRequest $request): RedirectResponse
     {
-        $request->user()->fill($request->validated());
+        $user = $request->user();
+        $user->fill($request->safe()->except('avatar'));
 
-        if ($request->user()->isDirty('email')) {
-            $request->user()->email_verified_at = null;
+        if ($request->hasFile('avatar')) {
+            // Delete old avatar if exists
+            if ($user->avatar && \Illuminate\Support\Facades\Storage::disk('public')->exists($user->avatar)) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($user->avatar);
+            }
+            
+            $path = $request->file('avatar')->store('avatars', 'public');
+            $user->avatar = $path;
         }
 
-        $request->user()->save();
+        if ($user->isDirty('email')) {
+            $user->email_verified_at = null;
+        }
 
-        return Redirect::route('profile.edit');
+        $user->save();
+
+        return Redirect::back();
     }
 
     /**
@@ -69,15 +77,25 @@ class ProfileController extends Controller
         $request->validate([
             'months' => 'required|array',
             'months.*' => 'required|string|regex:/^\d{4}-\d{2}$/',
+            'role' => 'nullable|string|in:all,Suami,Istri',
         ]);
 
         $months = $request->input('months');
+        $role = $request->input('role', 'all');
+        $userIds = [];
+        if ($role !== 'all') {
+            $userIds = \App\Models\User::where('role', $role)->pluck('id')->toArray();
+        }
 
         foreach ($months as $month) {
             $startDate = $month . '-01';
             $endDate = date('Y-m-t', strtotime($startDate));
 
-            $transactions = \App\Models\Transaction::whereBetween('date', [$startDate, $endDate])->get();
+            $query = \App\Models\Transaction::whereBetween('date', [$startDate, $endDate]);
+            if ($role !== 'all') {
+                $query->whereIn('user_id', $userIds);
+            }
+            $transactions = $query->get();
 
             foreach ($transactions as $transaction) {
                 $transaction->delete();
@@ -86,33 +104,33 @@ class ProfileController extends Controller
             \App\Models\ActivityLog::create([
                 'user_id' => Auth::id(),
                 'action' => 'Reset Data',
-                'description' => "Mereset seluruh data transaksi pada bulan " . date('F Y', strtotime($startDate)),
+                'description' => "Mereset data transaksi " . ($role !== 'all' ? "untuk role $role " : "") . "pada bulan " . date('F Y', strtotime($startDate)),
                 'icon' => 'RotateCcw',
                 'color' => 'bg-rose-500'
             ]);
         }
 
-        // Disable FK to avoid constraint errors during deletion
-        \Illuminate\Support\Facades\Schema::disableForeignKeyConstraints();
-        
-        // Hapus semua data kategori dan dompet (tanpa membuat default)
-        \App\Models\Category::query()->delete();
-        \App\Models\Wallet::query()->delete();
-        
-        // Jika semua dompet dihapus, maka sisa transaksi yang ada akan memiliki wallet_id yang tidak valid
-        // (karena wallet_id tidak nullable). Oleh karena itu, kita hapus seluruh sisa transaksi 
-        // agar konsistensi database terjaga, sesuai dengan ekspektasi "Reset Seluruh Data".
-        \App\Models\Transaction::query()->delete();
+        if ($role === 'all') {
+            // Disable FK to avoid constraint errors during deletion
+            \Illuminate\Support\Facades\Schema::disableForeignKeyConstraints();
+            
+            // Hapus semua data kategori dan dompet (tanpa membuat default)
+            \App\Models\Category::query()->delete();
+            \App\Models\Wallet::query()->delete();
+            
+            // Hapus seluruh sisa transaksi 
+            \App\Models\Transaction::query()->delete();
 
-        \Illuminate\Support\Facades\Schema::enableForeignKeyConstraints();
+            \Illuminate\Support\Facades\Schema::enableForeignKeyConstraints();
 
-        \App\Models\ActivityLog::create([
-            'user_id' => Auth::id(),
-            'action' => 'Reset Data',
-            'description' => "Mereset seluruh kategori dan kantong ke data bawaan",
-            'icon' => 'RotateCcw',
-            'color' => 'bg-rose-500'
-        ]);
+            \App\Models\ActivityLog::create([
+                'user_id' => Auth::id(),
+                'action' => 'Reset Data',
+                'description' => "Mereset seluruh kategori dan kantong ke data bawaan",
+                'icon' => 'RotateCcw',
+                'color' => 'bg-rose-500'
+            ]);
+        }
 
         // Recalculate wallet balances from remaining transactions
         $remainingTransactions = \App\Models\Transaction::all();
