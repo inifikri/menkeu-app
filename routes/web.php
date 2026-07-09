@@ -13,11 +13,15 @@ Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\TrashController;
 
 Route::middleware('auth')->group(function () {
     Route::post('/transactions', [TransactionController::class, 'store'])->name('transactions.store');
     Route::put('/transactions/{id}', [TransactionController::class, 'update'])->name('transactions.update');
     Route::delete('/transactions/{id}', [TransactionController::class, 'destroy'])->name('transactions.destroy');
+
+    Route::post('/trash/restore/{type}/{id}', [TrashController::class, 'restore'])->name('trash.restore');
+    Route::delete('/trash/force-delete/{type}/{id}', [TrashController::class, 'forceDelete'])->name('trash.forceDelete');
 
     Route::post('/categories', [CategoryController::class, 'store'])->name('categories.store');
     Route::delete('/categories/{id}', [CategoryController::class, 'destroy'])->name('categories.destroy');

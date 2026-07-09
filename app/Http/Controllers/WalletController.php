@@ -17,7 +17,7 @@ class WalletController extends Controller
             'icon' => 'nullable|string|max:50',
         ]);
 
-        Wallet::create($validated);
+        Wallet::create(array_merge($validated, ['user_id' => auth()->id()]));
 
         return redirect()->back()->with('message', 'Kantong berhasil ditambahkan.');
     }
@@ -25,6 +25,11 @@ class WalletController extends Controller
     public function update(Request $request, $id)
     {
         $wallet = Wallet::findOrFail($id);
+
+        $user = auth()->user();
+        if ($user->role !== 'Admin' && $wallet->user_id !== $user->id) {
+            abort(403, 'Anda tidak memiliki hak untuk mengubah kantong ini.');
+        }
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -42,6 +47,12 @@ class WalletController extends Controller
     public function destroy($id)
     {
         $wallet = Wallet::findOrFail($id);
+
+        $user = auth()->user();
+        if ($user->role !== 'Admin' && $wallet->user_id !== $user->id) {
+            abort(403, 'Anda tidak memiliki hak untuk menghapus kantong ini.');
+        }
+
         $wallet->delete();
 
         return redirect()->back()->with('message', 'Kantong berhasil dihapus.');

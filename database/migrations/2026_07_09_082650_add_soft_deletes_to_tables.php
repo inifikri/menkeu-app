@@ -11,8 +11,16 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('tables', function (Blueprint $table) {
-            //
+        Schema::table('transactions', function (Blueprint $table) {
+            $table->softDeletes();
+        });
+
+        Schema::table('categories', function (Blueprint $table) {
+            $table->softDeletes();
+        });
+
+        Schema::table('wallets', function (Blueprint $table) {
+            $table->softDeletes();
         });
     }
 
@@ -21,8 +29,16 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('tables', function (Blueprint $table) {
-            //
+        Schema::table('transactions', function (Blueprint $table) {
+            $table->dropSoftDeletes();
+        });
+
+        Schema::table('categories', function (Blueprint $table) {
+            $table->dropSoftDeletes();
+        });
+
+        Schema::table('wallets', function (Blueprint $table) {
+            $table->dropSoftDeletes();
         });
     }
 };

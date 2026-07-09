@@ -39,6 +39,9 @@ class DashboardController extends Controller
                     'name' => $w->name,
                     'balance' => (float) $w->balance,
                     'type' => $w->type,
+                    'color' => $w->color,
+                    'icon' => $w->icon,
+                    'userId' => $w->user_id ? (string) $w->user_id : null,
                 ];
             }),
             'initialTransactions' => Transaction::orderBy('date', 'desc')->get()->map(function($t) {
@@ -51,6 +54,41 @@ class DashboardController extends Controller
                     'categoryId' => (string) $t->category_id,
                     'walletId' => (string) $t->wallet_id,
                     'memberId' => (string) $t->user_id,
+                ];
+            }),
+            'initialTrashTransactions' => Transaction::onlyTrashed()->orderBy('deleted_at', 'desc')->get()->map(function($t) {
+                return [
+                    'id' => (string) $t->id,
+                    'description' => $t->description,
+                    'amount' => (float) $t->amount,
+                    'type' => $t->type,
+                    'date' => $t->date,
+                    'categoryId' => (string) $t->category_id,
+                    'walletId' => (string) $t->wallet_id,
+                    'memberId' => (string) $t->user_id,
+                    'deletedAt' => $t->deleted_at->toIso8601String(),
+                ];
+            }),
+            'initialTrashCategories' => Category::onlyTrashed()->orderBy('deleted_at', 'desc')->get()->map(function($c) {
+                return [
+                    'id' => (string) $c->id,
+                    'name' => $c->name,
+                    'icon' => $c->icon,
+                    'color' => $c->color,
+                    'budget' => (float) $c->budget,
+                    'deletedAt' => $c->deleted_at->toIso8601String(),
+                ];
+            }),
+            'initialTrashWallets' => Wallet::onlyTrashed()->orderBy('deleted_at', 'desc')->get()->map(function($w) {
+                return [
+                    'id' => (string) $w->id,
+                    'name' => $w->name,
+                    'balance' => (float) $w->balance,
+                    'type' => $w->type,
+                    'color' => $w->color,
+                    'icon' => $w->icon,
+                    'userId' => $w->user_id ? (string) $w->user_id : null,
+                    'deletedAt' => $w->deleted_at->toIso8601String(),
                 ];
             }),
             'activeSessions' => \Illuminate\Support\Facades\DB::table('sessions')
