@@ -407,6 +407,31 @@ class DashboardAnalyticsService
             ];
         }
 
+        // 9. Micro-Budgeting Warning Calculation
+        $monthElapsedPercent = $now->day / $now->daysInMonth;
+        $childCategories = Category::whereNotNull('parent_id')->get();
+        $warningCategories = [];
+
+        foreach ($childCategories as $cat) {
+            $catSpent = (float) Transaction::where('category_id', $cat->id)
+                ->where('type', 'expense')
+                ->whereBetween('date', [$startOfMonth, $endOfMonth])
+                ->sum('amount');
+            
+            $catBudget = (float) $cat->budget;
+            $usagePercent = $catBudget > 0 ? ($catSpent / $catBudget) : 0;
+
+            if ($usagePercent > $monthElapsedPercent && $catBudget > 0) {
+                $warningCategories[] = [
+                    'category_id' => (string) $cat->id,
+                    'category_name' => $cat->name,
+                    'usage_percentage' => round($usagePercent * 100, 1),
+                    'elapsed_percentage' => round($monthElapsedPercent * 100, 1),
+                    'message' => "Peringatan: Laju pemakaian anggaran {$cat->name} melebihi batas waktu operasional. Lakukan penyesuaian minggu ini."
+                ];
+            }
+        }
+
         $payload = [
             'summary' => [
                 'income' => $income,
@@ -439,6 +464,10 @@ class DashboardAnalyticsService
                 'liability' => $totalLiabilities,
                 'total' => $netWorthTotal,
                 'trendData' => $netWorthTrendData
+            ],
+            'micro_monitoring' => [
+                'warning_categories' => $warningCategories,
+                'month_elapsed_percent' => $monthElapsedPercent,
             ]
         ];
 

@@ -2,100 +2,52 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreTransactionRequest;
+use App\Http\Requests\UpdateTransactionRequest;
 use App\Models\Transaction;
-use App\Models\Wallet;
-use Illuminate\Http\Request;
+use App\Services\TransactionService;
+use Illuminate\Http\RedirectResponse;
 
 class TransactionController extends Controller
 {
-    public function store(Request $request)
+    protected $transactionService;
+
+    public function __construct(TransactionService $transactionService)
     {
-        $validated = $request->validate([
-            'transactions' => 'required|array',
-            'transactions.*.date' => 'required|date',
-            'transactions.*.description' => 'required|string|max:255',
-            'transactions.*.amount' => 'required|numeric|min:1',
-            'transactions.*.type' => 'required|in:income,expense',
-            'transactions.*.category_id' => 'nullable|exists:categories,id',
-            'transactions.*.wallet_id' => 'required|exists:wallets,id',
-            'transactions.*.user_id' => 'required|exists:users,id',
-        ]);
+        $this->transactionService = $transactionService;
+    }
 
-        foreach ($validated['transactions'] as $tx) {
-            Transaction::create($tx);
-
-            // Update Wallet Balance
-            $wallet = Wallet::find($tx['wallet_id']);
-            if ($tx['type'] === 'income') {
-                $wallet->balance += $tx['amount'];
-            } else {
-                $wallet->balance -= $tx['amount'];
-            }
-            $wallet->save();
-        }
+    /**
+     * Store a newly created bulk transactions.
+     */
+    public function store(StoreTransactionRequest $request): RedirectResponse
+    {
+        $validated = $request->validated();
+        $this->transactionService->storeBulkTransactions($validated['transactions']);
 
         event(new \App\Events\BulkTransactionsSaved());
 
         return redirect()->back()->with('message', 'Transaksi berhasil ditambahkan.');
     }
 
-    public function update(Request $request, $id)
+    /**
+     * Update the specified transaction.
+     */
+    public function update(UpdateTransactionRequest $request, int $id): RedirectResponse
     {
         $transaction = Transaction::findOrFail($id);
-
-        $validated = $request->validate([
-            'date' => 'required|date',
-            'description' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:1',
-            'type' => 'required|in:income,expense',
-            'category_id' => 'nullable|exists:categories,id',
-            'wallet_id' => 'required|exists:wallets,id',
-            'user_id' => 'required|exists:users,id',
-        ]);
-
-        // Revert old wallet balance
-        $oldWallet = Wallet::find($transaction->wallet_id);
-        if ($oldWallet) {
-            if ($transaction->type === 'income') {
-                $oldWallet->balance -= $transaction->amount;
-            } else {
-                $oldWallet->balance += $transaction->amount;
-            }
-            $oldWallet->save();
-        }
-
-        $transaction->update($validated);
-
-        // Apply new wallet balance
-        $newWallet = Wallet::find($validated['wallet_id']);
-        if ($newWallet) {
-            if ($validated['type'] === 'income') {
-                $newWallet->balance += $validated['amount'];
-            } else {
-                $newWallet->balance -= $validated['amount'];
-            }
-            $newWallet->save();
-        }
+        $this->transactionService->updateTransaction($transaction, $request->validated());
 
         return redirect()->back()->with('message', 'Transaksi berhasil diperbarui.');
     }
 
-    public function destroy($id)
+    /**
+     * Remove the specified transaction.
+     */
+    public function destroy(int $id): RedirectResponse
     {
         $transaction = Transaction::findOrFail($id);
-        
-        // Revert wallet balance
-        $wallet = Wallet::find($transaction->wallet_id);
-        if ($wallet) {
-            if ($transaction->type === 'income') {
-                $wallet->balance -= $transaction->amount;
-            } else {
-                $wallet->balance += $transaction->amount;
-            }
-            $wallet->save();
-        }
-
-        $transaction->delete();
+        $this->transactionService->deleteTransaction($transaction);
 
         return redirect()->back()->with('message', 'Transaksi berhasil dihapus.');
     }

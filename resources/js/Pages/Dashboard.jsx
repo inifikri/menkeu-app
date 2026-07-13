@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { usePage, useForm, router } from '@inertiajs/react';
-import axios from 'axios';
+import { usePage, useForm, router } from "@inertiajs/react";
+import axios from "axios";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     LayoutDashboard,
@@ -56,6 +56,8 @@ import {
     Lightbulb,
     Coffee,
     CreditCard,
+    Coins,
+    Building,
     Package,
     Bike,
     Home,
@@ -74,6 +76,24 @@ import {
     CheckCircle,
 } from "lucide-react";
 import ExecutiveDashboard from "../Components/ExecutiveDashboard";
+import MonthRangePicker from "../Components/MonthRangePicker";
+import WalletFormModal from "./Dashboard/Partials/WalletFormModal";
+import TopUpModal from "./Dashboard/Partials/TopUpModal";
+import TransferModal from "./Dashboard/Partials/TransferModal";
+import BudgetingTab from "./Dashboard/Partials/BudgetingTab";
+const isParentCategory = (cat) => {
+    if (!cat) return false;
+    return (
+        !cat.parentId &&
+        [
+            "Kebutuhan Pokok",
+            "Transportasi & Kerja",
+            "Kebutuhan Pendukung",
+            "Kesehatan & Perawatan",
+            "Gaya Hidup & Konsumtif",
+        ].includes(cat.name)
+    );
+};
 
 const ICON_MAP = {
     Utensils,
@@ -153,7 +173,7 @@ const AVAILABLE_PERMISSIONS = [
         key: "reset_data",
         label: "Reset Data",
         desc: "Mereset data seluruh aplikasi",
-    }
+    },
 ];
 
 const ROLE_PERMISSIONS = {
@@ -165,7 +185,7 @@ const ROLE_PERMISSIONS = {
         "lihat_laporan",
         "atur_budget",
         "ekspor_data",
-        "kelola_kategori"
+        "kelola_kategori",
     ],
     Suami: [
         "lihat_dompet",
@@ -174,33 +194,24 @@ const ROLE_PERMISSIONS = {
         "kelola_kategori",
         "lihat_laporan",
         "atur_budget",
-        "ekspor_data"
+        "ekspor_data",
+        "kelola_dompet",
+        "kelola_anggota",
+        "lihat_log",
+        "reset_data",
     ],
     Istri: [
         "lihat_dompet",
         "topup_dompet",
         "catat_transaksi",
-        "kelola_kategori",
         "lihat_laporan",
         "atur_budget",
-        "ekspor_data"
+        "ekspor_data",
     ],
-    Anggota: [
-        "lihat_dompet",
-        "catat_transaksi",
-        "lihat_laporan"
-    ],
+    Anggota: ["lihat_dompet", "catat_transaksi", "lihat_laporan"],
 };
 
 const INITIAL_MEMBERS = [
-    {
-        id: "m1",
-        name: "Admin Fikrikeluarga",
-        role: "Admin",
-        avatarColor: "bg-indigo-600",
-        email: "admin@fikrifamily.com",
-        permissions: ROLE_PERMISSIONS["Admin"],
-    },
     {
         id: "m2",
         name: "Suami",
@@ -220,32 +231,142 @@ const INITIAL_MEMBERS = [
 ];
 
 const INITIAL_CATEGORIES = [
-    { id: "c1", name: "Makan", icon: "Utensils", color: "bg-orange-500", budget: 1500000 },
-    { id: "c2", name: "Jajan", icon: "Package", color: "bg-yellow-500", budget: 500000 },
-    { id: "c3", name: "Kartu KRL", icon: "CreditCard", color: "bg-blue-500", budget: 200000 },
-    { id: "c4", name: "Lainnya", icon: "Grid", color: "bg-slate-500", budget: 300000 },
-    { id: "c5", name: "Penitipan motor", icon: "Bike", color: "bg-indigo-500", budget: 100000 },
-    { id: "c6", name: "Pokok", icon: "Home", color: "bg-emerald-500", budget: 2000000 },
-    { id: "c7", name: "Rokok", icon: "Flame", color: "bg-red-500", budget: 400000 },
-    { id: "c8", name: "Permotoran", icon: "Wrench", color: "bg-zinc-600", budget: 300000 },
-    { id: "c9", name: "Bensin", icon: "Fuel", color: "bg-cyan-500", budget: 400000 },
-    { id: "c10", name: "Kebutuhan dapur", icon: "ShoppingCart", color: "bg-amber-600", budget: 800000 },
-    { id: "c11", name: "Kebersihan", icon: "Droplets", color: "bg-teal-400", budget: 150000 },
-    { id: "c12", name: "Skincare & Bodycare", icon: "Sparkles", color: "bg-pink-400", budget: 300000 },
-    { id: "c13", name: "Kuota", icon: "Wifi", color: "bg-violet-500", budget: 150000 },
-    { id: "c14", name: "Ngopi", icon: "Coffee", color: "bg-stone-600", budget: 300000 },
-    { id: "c15", name: "Piutang", icon: "HandCoins", color: "bg-lime-600", budget: 500000 },
-    { id: "c16", name: "Buah-buahan", icon: "Apple", color: "bg-red-400", budget: 200000 },
+    {
+        id: "c1",
+        name: "Makan",
+        icon: "Utensils",
+        color: "bg-orange-500",
+        budget: 1500000,
+    },
+    {
+        id: "c2",
+        name: "Jajan",
+        icon: "Package",
+        color: "bg-yellow-500",
+        budget: 500000,
+    },
+    {
+        id: "c3",
+        name: "Kartu KRL",
+        icon: "CreditCard",
+        color: "bg-blue-500",
+        budget: 200000,
+    },
+    {
+        id: "c4",
+        name: "Lainnya",
+        icon: "Grid",
+        color: "bg-slate-500",
+        budget: 300000,
+    },
+    {
+        id: "c5",
+        name: "Penitipan motor",
+        icon: "Bike",
+        color: "bg-indigo-500",
+        budget: 100000,
+    },
+    {
+        id: "c6",
+        name: "Pokok",
+        icon: "Home",
+        color: "bg-emerald-500",
+        budget: 2000000,
+    },
+    {
+        id: "c7",
+        name: "Rokok",
+        icon: "Flame",
+        color: "bg-red-500",
+        budget: 400000,
+    },
+    {
+        id: "c8",
+        name: "Permotoran",
+        icon: "Wrench",
+        color: "bg-zinc-600",
+        budget: 300000,
+    },
+    {
+        id: "c9",
+        name: "Bensin",
+        icon: "Fuel",
+        color: "bg-cyan-500",
+        budget: 400000,
+    },
+    {
+        id: "c10",
+        name: "Kebutuhan dapur",
+        icon: "ShoppingCart",
+        color: "bg-amber-600",
+        budget: 800000,
+    },
+    {
+        id: "c11",
+        name: "Kebersihan",
+        icon: "Droplets",
+        color: "bg-teal-400",
+        budget: 150000,
+    },
+    {
+        id: "c12",
+        name: "Skincare & Bodycare",
+        icon: "Sparkles",
+        color: "bg-pink-400",
+        budget: 300000,
+    },
+    {
+        id: "c13",
+        name: "Kuota",
+        icon: "Wifi",
+        color: "bg-violet-500",
+        budget: 150000,
+    },
+    {
+        id: "c14",
+        name: "Ngopi",
+        icon: "Coffee",
+        color: "bg-stone-600",
+        budget: 300000,
+    },
+    {
+        id: "c15",
+        name: "Piutang",
+        icon: "HandCoins",
+        color: "bg-lime-600",
+        budget: 500000,
+    },
+    {
+        id: "c16",
+        name: "Buah-buahan",
+        icon: "Apple",
+        color: "bg-red-400",
+        budget: 200000,
+    },
 ];
 
 const INITIAL_WALLETS = [
-    { id: "w1", name: "Rekening Utama (BCA)", balance: 8500000, type: "Bank" },
-    { id: "w2", name: "Dompet Tunai Ibu", balance: 1200000, type: "Tunai" },
+    {
+        id: "w1",
+        name: "Rekening Utama (BCA)",
+        balance: 8500000,
+        type: "Bank",
+        isUtama: true,
+        userId: "m1",
+    },
+    {
+        id: "w2",
+        name: "Dompet Tunai Ibu",
+        balance: 1200000,
+        type: "Tunai",
+        userId: "m3",
+    },
     {
         id: "w3",
         name: "Dana Darurat (Mandiri)",
         balance: 5000000,
         type: "Investasi",
+        userId: "m2",
     },
 ];
 
@@ -312,24 +433,42 @@ const INITIAL_TRANSACTIONS = [
     },
 ];
 
-export default function App({ auth, initialMembers, initialCategories, initialWallets, initialTransactions, activeSessions, initialTrashTransactions, initialTrashCategories, initialTrashWallets }) {
+export default function App({
+    auth,
+    initialMembers,
+    initialCategories,
+    initialWallets,
+    initialTransactions,
+    activeSessions,
+    initialTrashTransactions,
+    initialTrashCategories,
+    initialTrashWallets,
+}) {
     const currentUser = auth?.user || null;
     const isLoggedIn = !!currentUser;
 
     // Fallback to INITIAL_ constants if database props are empty/undefined (e.g. before full integration)
-    const [transactions, setTransactions] = useState(initialTransactions || INITIAL_TRANSACTIONS);
-    const [trashTransactions, setTrashTransactions] = useState(initialTrashTransactions || []);
-    const [trashCategories, setTrashCategories] = useState(initialTrashCategories || []);
+    const [transactions, setTransactions] = useState(
+        initialTransactions || INITIAL_TRANSACTIONS,
+    );
+    const [trashTransactions, setTrashTransactions] = useState(
+        initialTrashTransactions || [],
+    );
+    const [trashCategories, setTrashCategories] = useState(
+        initialTrashCategories || [],
+    );
     const [trashWallets, setTrashWallets] = useState(initialTrashWallets || []);
     const [trashSubTab, setTrashSubTab] = useState("tx");
-    const [categories, setCategories] = useState(initialCategories || INITIAL_CATEGORIES);
+    const [categories, setCategories] = useState(
+        initialCategories || INITIAL_CATEGORIES,
+    );
     const [wallets, setWallets] = useState(initialWallets || INITIAL_WALLETS);
     const [members, setMembers] = useState(initialMembers || INITIAL_MEMBERS);
 
     const [loginEmail, setLoginEmail] = useState("");
     const [loginPassword, setLoginPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
-    
+
     // Import States
     const [importedData, setImportedData] = useState([]);
     const [importFileName, setImportFileName] = useState("");
@@ -346,13 +485,13 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
 
     const availableTransactionMonths = useMemo(() => {
         const monthsSet = new Set();
-        
+
         // Add current month as a default fallback
         const now = new Date();
-        const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const currentMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
         monthsSet.add(currentMonthStr);
-        
-        transactions.forEach(t => {
+
+        transactions.forEach((t) => {
             if (t.date) {
                 const m = t.date.substring(0, 7);
                 if (m && /^\d{4}-\d{2}$/.test(m)) {
@@ -360,16 +499,26 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                 }
             }
         });
-        
+
         return Array.from(monthsSet).sort().reverse();
     }, [transactions]);
 
     const formatMonthYear = (monthStr) => {
-        if (!monthStr || !monthStr.includes('-')) return monthStr;
-        const [year, month] = monthStr.split('-');
+        if (!monthStr || !monthStr.includes("-")) return monthStr;
+        const [year, month] = monthStr.split("-");
         const monthNames = [
-            "Januari", "Februari", "Maret", "April", "Mei", "Juni",
-            "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+            "Januari",
+            "Februari",
+            "Maret",
+            "April",
+            "Mei",
+            "Juni",
+            "Juli",
+            "Agustus",
+            "September",
+            "Oktober",
+            "November",
+            "Desember",
         ];
         const monthIdx = parseInt(month, 10) - 1;
         if (monthIdx < 0 || monthIdx > 11) return monthStr;
@@ -379,28 +528,34 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
     const handleResetSubmit = () => {
         if (selectedResetMonths.length === 0) return;
         let confirmMsg = `Apakah Anda yakin ingin menghapus data transaksi untuk ${selectedResetMonths.length} bulan terpilih`;
-        if (selectedResetRole !== 'all') {
+        if (selectedResetRole !== "all") {
             confirmMsg += ` (Role ${selectedResetRole})`;
         } else {
             confirmMsg += ` serta mereset seluruh data kategori & kantong ke data bawaan`;
         }
         confirmMsg += "? Tindakan ini tidak dapat dibatalkan.";
         if (!confirm(confirmMsg)) return;
-        
+
         setIsResetting(true);
-        axios.post(route('profile.reset-data'), { months: selectedResetMonths, role: selectedResetRole })
-            .then(res => {
+        axios
+            .post(route("profile.reset-data"), {
+                months: selectedResetMonths,
+                role: selectedResetRole,
+            })
+            .then((res) => {
                 showToast("Data transaksi berhasil di-reset.");
                 setIsResetModalOpen(false);
                 setSelectedResetMonths([]);
                 router.reload({
                     preserveState: true,
                     onSuccess: () => {
-                        axios.get('/api/dashboard/metrics?force_recalculate=true');
-                    }
+                        axios.get(
+                            "/api/dashboard/metrics?force_recalculate=true",
+                        );
+                    },
                 });
             })
-            .catch(err => {
+            .catch((err) => {
                 console.error(err);
                 showToast("Gagal melakukan reset data.", "error");
             })
@@ -415,41 +570,72 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
         return currentUser.permissions?.includes(permKey);
     };
 
-    const [activeTab, setActiveTab] = useState(isLoggedIn ? (currentUser.role === "Administrator" || currentUser.permissions?.includes("lihat_laporan") ? "dashboard" : "profile") : "dashboard");
+    const [activeTab, setActiveTab] = useState(
+        isLoggedIn
+            ? currentUser.role === "Administrator" ||
+              currentUser.permissions?.includes("lihat_laporan")
+                ? "dashboard"
+                : "profile"
+            : "dashboard",
+    );
     const [activeSettingsTab, setActiveSettingsTab] = useState("profile");
-    
+
     // Form States for Profile and Security
     const [isEditingProfile, setIsEditingProfile] = useState(false);
-    const { data: profileData, setData: setProfileData, post: postProfile, processing: processingProfile, errors: profileErrors, recentlySuccessful: profileSuccessful } = useForm({
-        name: currentUser?.name || '',
-        email: currentUser?.email || '',
+    const {
+        data: profileData,
+        setData: setProfileData,
+        post: postProfile,
+        processing: processingProfile,
+        errors: profileErrors,
+        recentlySuccessful: profileSuccessful,
+    } = useForm({
+        name: currentUser?.name || "",
+        email: currentUser?.email || "",
         avatar: null,
-        _method: 'PATCH'
-    });
-    
-    const { data: pwdData, setData: setPwdData, put: putPassword, processing: processingPwd, errors: pwdErrors, reset: resetPwd, recentlySuccessful: pwdSuccessful } = useForm({
-        current_password: '',
-        password: '',
-        password_confirmation: '',
+        _method: "PATCH",
     });
 
+    const {
+        data: pwdData,
+        setData: setPwdData,
+        put: putPassword,
+        processing: processingPwd,
+        errors: pwdErrors,
+        reset: resetPwd,
+        recentlySuccessful: pwdSuccessful,
+    } = useForm({
+        current_password: "",
+        password: "",
+        password_confirmation: "",
+    });
 
     const generatePassword = () => {
-        const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+~`|}{[]:;?><,./-=";
+        const charset =
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+~`|}{[]:;?><,./-=";
         let retVal = "";
         // Ensure at least one uppercase, one lowercase, one numeric, and one symbol
         retVal += "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[Math.floor(Math.random() * 26)];
         retVal += "abcdefghijklmnopqrstuvwxyz"[Math.floor(Math.random() * 26)];
         retVal += "0123456789"[Math.floor(Math.random() * 10)];
-        retVal += "!@#$%^&*()_+~`|}{[]:;?><,./-="[Math.floor(Math.random() * 29)];
+        retVal += "!@#$%^&*()_+~`|}{[]:;?><,./-="[
+            Math.floor(Math.random() * 29)
+        ];
         for (let i = 0, n = charset.length; i < 12; ++i) {
             retVal += charset.charAt(Math.floor(Math.random() * n));
         }
         // Shuffle the string
-        retVal = retVal.split('').sort(() => 0.5 - Math.random()).join('');
-        setPwdData(data => ({ ...data, password: retVal, password_confirmation: retVal }));
+        retVal = retVal
+            .split("")
+            .sort(() => 0.5 - Math.random())
+            .join("");
+        setPwdData((data) => ({
+            ...data,
+            password: retVal,
+            password_confirmation: retVal,
+        }));
     };
-    
+
     const evaluatePasswordStrength = (pwd) => {
         let score = 0;
         if (pwd.length > 8) score += 1;
@@ -457,28 +643,31 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
         if (/[a-z]/.test(pwd)) score += 1;
         if (/[0-9]/.test(pwd)) score += 1;
         if (/[^A-Za-z0-9]/.test(pwd)) score += 1;
-        
-        if (score === 0) return { label: 'Kosong', color: 'bg-slate-200' };
-        if (score <= 2) return { label: 'Lemah', color: 'bg-rose-500', width: '25%' };
-        if (score <= 3) return { label: 'Sedang', color: 'bg-yellow-500', width: '50%' };
-        if (score === 4) return { label: 'Kuat', color: 'bg-blue-500', width: '75%' };
-        return { label: 'Sangat Kuat', color: 'bg-emerald-500', width: '100%' };
+
+        if (score === 0) return { label: "Kosong", color: "bg-slate-200" };
+        if (score <= 2)
+            return { label: "Lemah", color: "bg-rose-500", width: "25%" };
+        if (score <= 3)
+            return { label: "Sedang", color: "bg-yellow-500", width: "50%" };
+        if (score === 4)
+            return { label: "Kuat", color: "bg-blue-500", width: "75%" };
+        return { label: "Sangat Kuat", color: "bg-emerald-500", width: "100%" };
     };
 
     const submitProfileUpdate = (e) => {
         e.preventDefault();
-        postProfile(route('profile.update'), {
+        postProfile(route("profile.update"), {
             preserveScroll: true,
             onSuccess: () => {
                 showToast("Profil berhasil diperbarui");
                 setActiveSettingsTab("profile");
-            }
+            },
         });
     };
 
     const submitPasswordUpdate = (e) => {
         e.preventDefault();
-        putPassword(route('password.update'), {
+        putPassword(route("password.update"), {
             preserveScroll: true,
             onSuccess: () => {
                 showToast("Password berhasil diubah");
@@ -486,16 +675,15 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
             },
             onError: (errors) => {
                 if (errors.password) {
-                    resetPwd('password', 'password_confirmation');
+                    resetPwd("password", "password_confirmation");
                 }
                 if (errors.current_password) {
-                    resetPwd('current_password');
+                    resetPwd("current_password");
                 }
-            }
+            },
         });
     };
 
-    
     // Logs State
     const [activityLogs, setActivityLogs] = useState([]);
     const [logsPage, setLogsPage] = useState(1);
@@ -509,15 +697,28 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
     const fetchLogs = async (page = 1, perPage = logsPerPage) => {
         setIsLoadingLogs(true);
         try {
-            const res = await axios.get(`/logs?page=${page}&per_page=${perPage}`);
-            setActivityLogs(res.data.data);
-            setLogsPage(res.data.current_page);
-            setLogsLastPage(res.data.last_page);
-            setLogsTotal(res.data.total);
-            setLogsFrom(res.data.from || 0);
-            setLogsTo(res.data.to || 0);
+            const res = await axios.get(
+                `/logs?page=${page}&per_page=${perPage}`,
+            );
+            const payload = res.data.data;
+            if (payload && payload.data) {
+                setActivityLogs(payload.data);
+                const meta = payload.meta || {};
+                setLogsPage(meta.current_page || 1);
+                setLogsLastPage(meta.last_page || 1);
+                setLogsTotal(meta.total || 0);
+                setLogsFrom(meta.from || 0);
+                setLogsTo(meta.to || 0);
+            } else {
+                setActivityLogs(res.data.data || []);
+                setLogsPage(res.data.current_page || 1);
+                setLogsLastPage(res.data.last_page || 1);
+                setLogsTotal(res.data.total || 0);
+                setLogsFrom(res.data.from || 0);
+                setLogsTo(res.data.to || 0);
+            }
         } catch (err) {
-            console.error('Failed to fetch logs', err);
+            console.error("Failed to fetch logs", err);
         } finally {
             setIsLoadingLogs(false);
         }
@@ -537,14 +738,20 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
         }
     }, [logsPerPage]);
 
-    const logActivity = (action, description, icon = 'Activity', color = 'bg-blue-500') => {
-        axios.post('/logs', { action, description, icon, color })
-            .then(res => {
+    const logActivity = (
+        action,
+        description,
+        icon = "Activity",
+        color = "bg-blue-500",
+    ) => {
+        axios
+            .post("/logs", { action, description, icon, color })
+            .then((res) => {
                 if (activeSettingsTab === "logs" && logsPage === 1) {
                     fetchLogs(1, logsPerPage);
                 }
             })
-            .catch(err => console.error('Failed to log activity', err));
+            .catch((err) => console.error("Failed to log activity", err));
     };
 
     useEffect(() => {
@@ -552,10 +759,19 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
         if (initialCategories) setCategories(initialCategories);
         if (initialWallets) setWallets(initialWallets);
         if (initialMembers) setMembers(initialMembers);
-        if (initialTrashTransactions) setTrashTransactions(initialTrashTransactions);
+        if (initialTrashTransactions)
+            setTrashTransactions(initialTrashTransactions);
         if (initialTrashCategories) setTrashCategories(initialTrashCategories);
         if (initialTrashWallets) setTrashWallets(initialTrashWallets);
-    }, [initialTransactions, initialCategories, initialWallets, initialMembers, initialTrashTransactions, initialTrashCategories, initialTrashWallets]);
+    }, [
+        initialTransactions,
+        initialCategories,
+        initialWallets,
+        initialMembers,
+        initialTrashTransactions,
+        initialTrashCategories,
+        initialTrashWallets,
+    ]);
 
     const [toast, setToast] = useState(null);
 
@@ -581,9 +797,12 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
     const [editingTx, setEditingTx] = useState(null);
 
     const [showTopUpModal, setShowTopUpModal] = useState(false);
-    const [topUpData, setTopUpData] = useState({ walletId: '', amount: '' });
+    const [topUpData, setTopUpData] = useState({
+        walletId: "",
+        sourceWalletId: "",
+        amount: "",
+    });
     const [walletTxPage, setWalletTxPage] = useState(1);
-
 
     const [showColumnDropdown, setShowColumnDropdown] = useState(false);
     const [visibleColumns, setVisibleColumns] = useState({
@@ -602,11 +821,23 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
         budget: "",
         icon: "Grid",
         color: "bg-blue-500",
+        parentId: null,
+        priorityLevel: 5,
     });
     const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
     const [showAddWalletModal, setShowAddWalletModal] = useState(false);
     const [walletSearch, setWalletSearch] = useState("");
     const [walletCategoryFilter, setWalletCategoryFilter] = useState("all");
+    const [selectedWalletId, setSelectedWalletId] = useState(null);
+    const [showTransferModal, setShowTransferModal] = useState(false);
+    const [transferData, setTransferData] = useState({
+        sourceWalletId: "",
+        targetWalletId: "",
+        amount: "",
+    });
+    const [detailSearch, setDetailSearch] = useState("");
+    const [detailCategoryFilter, setDetailCategoryFilter] = useState("all");
+    const [detailTxPage, setDetailTxPage] = useState(1);
     const [newWallet, setNewWallet] = useState({
         id: null,
         name: "",
@@ -614,6 +845,7 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
         type: "Bank",
         color: "bg-blue-600",
         icon: "Wallet",
+        is_utama: false,
     });
     const [newMember, setNewMember] = useState({
         id: null,
@@ -621,16 +853,19 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
         role: "Anggota",
         permissions: [...ROLE_PERMISSIONS["Anggota"]],
     });
-    const [selectedMemberForDetail, setSelectedMemberForDetail] = useState(null);
+    const [selectedMemberForDetail, setSelectedMemberForDetail] =
+        useState(null);
     const [showAddMemberModal, setShowAddMemberModal] = useState(false);
     const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
 
     const [budgetStartDate, setBudgetStartDate] = useState("");
     const [budgetEndDate, setBudgetEndDate] = useState("");
+
     const [showNotifDropdown, setShowNotifDropdown] = useState(false);
     const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
     const [selectedYear, setSelectedYear] = useState(2026);
     const [selectedMonth, setSelectedMonth] = useState(7);
+    const [selectedEndMonth, setSelectedEndMonth] = useState(7);
     const [showScrollTop, setShowScrollTop] = useState(false);
 
     // PWA Install State
@@ -762,8 +997,10 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
             .filter((t) => {
                 if (t.type !== "expense") return false;
                 const txDate = new Date(t.date);
+                const m = txDate.getMonth() + 1;
                 return (
-                    txDate.getMonth() + 1 === selectedMonth &&
+                    m >= selectedMonth &&
+                    m <= selectedEndMonth &&
                     txDate.getFullYear() === selectedYear
                 );
             })
@@ -773,7 +1010,13 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                 }
             });
         return map;
-    }, [transactions, categories, selectedMonth, selectedYear]);
+    }, [
+        transactions,
+        categories,
+        selectedMonth,
+        selectedEndMonth,
+        selectedYear,
+    ]);
 
     const expenseByMember = useMemo(() => {
         const map = {};
@@ -848,23 +1091,34 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
             return;
         }
 
-        router.post(route('login'), {
-            email: loginEmail,
-            password: loginPassword,
-        }, {
-            onError: (errors) => {
-                showToast(errors.email || "Login gagal, silakan periksa kredensial Anda.", "error");
+        router.post(
+            route("login"),
+            {
+                email: loginEmail,
+                password: loginPassword,
             },
-            onSuccess: () => {
-                showToast(`Selamat datang kembali!`);
-            }
-        });
+            {
+                onError: (errors) => {
+                    showToast(
+                        errors.email ||
+                            "Login gagal, silakan periksa kredensial Anda.",
+                        "error",
+                    );
+                },
+                onSuccess: () => {
+                    showToast(`Selamat datang kembali!`);
+                },
+            },
+        );
     };
 
     const handleQuickLogin = (member) => {
         setCurrentUser(member);
         setIsLoggedIn(true);
-        if (member.role !== "Administrator" && !member.permissions?.includes("lihat_laporan")) {
+        if (
+            member.role !== "Administrator" &&
+            !member.permissions?.includes("lihat_laporan")
+        ) {
             setActiveTab("profile");
         } else {
             setActiveTab("dashboard");
@@ -874,13 +1128,17 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
 
     const handleLogout = () => {
         if (window.confirm("Apakah Anda yakin ingin keluar?")) {
-            router.post(route('logout'), {}, {
-                onSuccess: () => {
-                    setLoginEmail("");
-                    setLoginPassword("");
-                    showToast("Anda telah keluar dari aplikasi", "info");
-                }
-            });
+            router.post(
+                route("logout"),
+                {},
+                {
+                    onSuccess: () => {
+                        setLoginEmail("");
+                        setLoginPassword("");
+                        showToast("Anda telah keluar dari aplikasi", "info");
+                    },
+                },
+            );
         }
     };
 
@@ -933,30 +1191,138 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
         setBulkTransactions(updated);
     };
 
-    
     const handleTopUpSubmit = (e) => {
         e.preventDefault();
-        if (!topUpData.amount || isNaN(topUpData.amount) || parseFloat(topUpData.amount) <= 0) {
+        if (
+            !topUpData.amount ||
+            isNaN(topUpData.amount) ||
+            parseFloat(topUpData.amount) <= 0
+        ) {
             showToast("Nominal top up tidak valid", "error");
             return;
         }
         const amountNum = parseFloat(topUpData.amount);
-        const newTx = {
-            id: "t_" + Date.now(),
-            description: "Top Up Kantong",
-            amount: amountNum,
-            type: "income",
-            categoryId: categories[0]?.id || "c1",
-            walletId: topUpData.walletId,
-            memberId: currentUser?.id || members[0]?.id || "m1",
-            date: new Date().toISOString().split("T")[0],
-        };
-        
-        setWallets(prev => prev.map(w => w.id === topUpData.walletId ? { ...w, balance: w.balance + amountNum } : w));
-        setTransactions(prev => [newTx, ...prev]);
-        showToast("Top up berhasil!", "success");
-        logActivity('Top Up Dompet', `Top up kantong senilai Rp ${formatIDR(amountNum)}`, 'Tambah', 'bg-emerald-500');
-        setShowTopUpModal(false);
+
+        const targetWallet = wallets.find((w) => w.id === topUpData.walletId);
+        if (!targetWallet) {
+            showToast("Kantong tujuan tidak ditemukan.", "error");
+            return;
+        }
+
+        // Jika target wallet adalah dompet utama, maka source_wallet_id diset sama dengan target wallet (top up mandiri)
+        const sourceId = targetWallet.isUtama
+            ? topUpData.walletId
+            : topUpData.sourceWalletId;
+
+        if (!sourceId) {
+            showToast("Silakan pilih kantong sumber dana.", "error");
+            return;
+        }
+
+        const sourceWallet = wallets.find((w) => w.id === sourceId);
+        if (!sourceWallet) {
+            showToast("Kantong sumber dana tidak ditemukan.", "error");
+            return;
+        }
+
+        router.post(
+            "/wallets/top-up",
+            {
+                wallet_id: topUpData.walletId,
+                source_wallet_id: sourceId,
+                amount: amountNum,
+            },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onSuccess: () => {
+                    setShowTopUpModal(false);
+                    showToast("Top up kantong berhasil!", "success");
+                    logActivity(
+                        "Top Up Kantong",
+                        `Top up kantong ${targetWallet.name} senilai Rp ${formatIDR(amountNum)} dari ${sourceWallet.name}`,
+                        "Tambah",
+                        "bg-emerald-500",
+                    );
+                },
+                onError: (errors) => {
+                    const errorMsg = errors.amount || "Gagal melakukan top up";
+                    showToast(errorMsg, "error");
+                },
+            },
+        );
+    };
+
+    const handleTransferSubmit = (e) => {
+        e.preventDefault();
+        if (
+            !transferData.amount ||
+            isNaN(transferData.amount) ||
+            parseFloat(transferData.amount) <= 0
+        ) {
+            showToast("Nominal transfer tidak valid", "error");
+            return;
+        }
+        const amountNum = parseFloat(transferData.amount);
+
+        const sourceWallet = wallets.find(
+            (w) => w.id === transferData.sourceWalletId,
+        );
+        if (!sourceWallet) {
+            showToast("Kantong asal tidak ditemukan.", "error");
+            return;
+        }
+
+        if (sourceWallet.isUtama && sourceWallet.balance < amountNum) {
+            showToast(
+                "Saldo Dompet Utama tidak mencukupi untuk dipindahkan.",
+                "error",
+            );
+            return;
+        }
+
+        const targetWallet = wallets.find(
+            (w) => w.id === transferData.targetWalletId,
+        );
+        if (!targetWallet) {
+            showToast("Kantong tujuan tidak ditemukan.", "error");
+            return;
+        }
+
+        if (sourceWallet.id === targetWallet.id) {
+            showToast(
+                "Tidak bisa mentransfer uang ke kantong yang sama.",
+                "error",
+            );
+            return;
+        }
+
+        router.post(
+            "/wallets/transfer",
+            {
+                source_wallet_id: transferData.sourceWalletId,
+                target_wallet_id: transferData.targetWalletId,
+                amount: amountNum,
+            },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onSuccess: () => {
+                    setShowTransferModal(false);
+                    showToast("Uang berhasil dipindahkan!", "success");
+                    logActivity(
+                        "Pindahkan Saldo",
+                        `Transfer saldo senilai Rp ${formatIDR(amountNum)} dari ${sourceWallet.name} ke ${targetWallet.name}`,
+                        "Kirim",
+                        "bg-blue-500",
+                    );
+                },
+                onError: (errors) => {
+                    const errorMsg = errors.amount || "Gagal memindahkan saldo";
+                    showToast(errorMsg, "error");
+                },
+            },
+        );
     };
 
     const handleSaveBulkTransactions = (e) => {
@@ -1016,7 +1382,12 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
         showToast(
             `${finalTransactions.length} Transaksi berhasil ditambahkan.`,
         );
-        logActivity('Tambah Transaksi', `Menambahkan ${finalTransactions.length} transaksi baru dengan total Rp ${finalTransactions.reduce((acc, tx) => acc + tx.amount, 0).toLocaleString('id-ID')}`, 'PlusCircle', 'bg-blue-500');
+        logActivity(
+            "Tambah Transaksi",
+            `Menambahkan ${finalTransactions.length} transaksi baru dengan total Rp ${finalTransactions.reduce((acc, tx) => acc + tx.amount, 0).toLocaleString("id-ID")}`,
+            "PlusCircle",
+            "bg-blue-500",
+        );
     };
 
     const handleOpenEdit = (tx) => {
@@ -1042,123 +1413,186 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
         const originalTx = transactions.find((t) => t.id === editingTx.id);
         if (!originalTx) return;
 
-        router.put(`/transactions/${editingTx.id}`, {
-            date: editingTx.date,
-            description: editingTx.description,
-            amount: amountNum,
-            type: editingTx.type,
-            category_id: editingTx.categoryId || null,
-            wallet_id: editingTx.walletId,
-            user_id: editingTx.memberId,
-        }, {
-            onSuccess: () => {
-                setEditingTx(null);
-                showToast("Transaksi berhasil diperbarui");
-                logActivity('Update Transaksi', `Memperbarui transaksi: ${editingTx.description}`, 'Edit', 'bg-amber-500');
+        router.put(
+            `/transactions/${editingTx.id}`,
+            {
+                date: editingTx.date,
+                description: editingTx.description,
+                amount: amountNum,
+                type: editingTx.type,
+                category_id: editingTx.categoryId || null,
+                wallet_id: editingTx.walletId,
+                user_id: editingTx.memberId,
             },
-            onError: (err) => {
-                showToast("Gagal memperbarui transaksi", "error");
-            }
-        });
+            {
+                onSuccess: () => {
+                    setEditingTx(null);
+                    showToast("Transaksi berhasil diperbarui");
+                    logActivity(
+                        "Update Transaksi",
+                        `Memperbarui transaksi: ${editingTx.description}`,
+                        "Edit",
+                        "bg-amber-500",
+                    );
+                },
+                onError: (err) => {
+                    showToast("Gagal memperbarui transaksi", "error");
+                },
+            },
+        );
     };
 
     const handleDeleteTransaction = (id, type, amount, walletId) => {
-        if (!window.confirm("Apakah Anda yakin ingin menghapus transaksi ini?")) return;
-        const txToDelete = transactions.find(t => t.id === id);
+        if (!window.confirm("Apakah Anda yakin ingin menghapus transaksi ini?"))
+            return;
+        const txToDelete = transactions.find((t) => t.id === id);
 
         router.delete(`/transactions/${id}`, {
             onSuccess: () => {
                 showToast("Transaksi berhasil dihapus", "info");
                 if (txToDelete) {
-                    logActivity('Hapus Transaksi', `Menghapus transaksi: ${txToDelete.description}`, 'Trash2', 'bg-rose-500');
+                    logActivity(
+                        "Hapus Transaksi",
+                        `Menghapus transaksi: ${txToDelete.description}`,
+                        "Trash2",
+                        "bg-rose-500",
+                    );
                 }
             },
             onError: (err) => {
                 showToast("Gagal menghapus transaksi", "error");
-            }
+            },
         });
     };
 
     const handleRestoreItem = (type, id) => {
-        router.post(`/trash/restore/${type}/${id}`, {}, {
-            onSuccess: () => {
-                showToast("Data berhasil dipulihkan");
-                logActivity('Restore Data', `Memulihkan data ${type} dari kotak sampah`, 'RotateCcw', 'bg-blue-500');
+        router.post(
+            `/trash/restore/${type}/${id}`,
+            {},
+            {
+                onSuccess: () => {
+                    showToast("Data berhasil dipulihkan");
+                    logActivity(
+                        "Restore Data",
+                        `Memulihkan data ${type} dari kotak sampah`,
+                        "RotateCcw",
+                        "bg-blue-500",
+                    );
+                },
+                onError: () => {
+                    showToast("Gagal memulihkan data", "error");
+                },
             },
-            onError: () => {
-                showToast("Gagal memulihkan data", "error");
-            }
-        });
+        );
     };
 
     const handleForceDeleteItem = (type, id) => {
-        if (!window.confirm("Apakah Anda yakin ingin menghapus data ini secara permanen? Tindakan ini tidak dapat dibatalkan.")) return;
+        if (
+            !window.confirm(
+                "Apakah Anda yakin ingin menghapus data ini secara permanen? Tindakan ini tidak dapat dibatalkan.",
+            )
+        )
+            return;
         router.delete(`/trash/force-delete/${type}/${id}`, {
             onSuccess: () => {
                 showToast("Data berhasil dihapus permanen", "info");
-                logActivity('Hapus Permanen', `Menghapus permanen data ${type} dari kotak sampah`, 'Trash2', 'bg-rose-600');
+                logActivity(
+                    "Hapus Permanen",
+                    `Menghapus permanen data ${type} dari kotak sampah`,
+                    "Trash2",
+                    "bg-rose-600",
+                );
             },
             onError: () => {
                 showToast("Gagal menghapus data", "error");
-            }
+            },
         });
     };
 
     const handleAddCategory = (e) => {
         e.preventDefault();
-        if (!newCat.name || !newCat.budget) {
-            showToast("Nama kategori dan anggaran wajib diisi", "error");
+        if (!newCat.name) {
+            showToast("Nama kategori wajib diisi", "error");
             return;
         }
 
+        const payload = {
+            name: newCat.name,
+            budget: parseFloat(newCat.budget) || 0,
+            icon: newCat.icon || "Grid",
+            color: newCat.color || "bg-blue-500",
+            parent_id: newCat.parentId ? newCat.parentId : null,
+            priority_level: parseInt(newCat.priorityLevel) || 5,
+        };
+
         if (newCat.id) {
-            setCategories(
-                categories.map((c) =>
-                    c.id === newCat.id
-                        ? {
-                              ...c,
-                              name: newCat.name,
-                              budget: parseFloat(newCat.budget),
-                              icon: newCat.icon || c.icon,
-                              color: newCat.color || c.color,
-                          }
-                        : c,
-                ),
-            );
-            showToast("Kategori berhasil diubah");
+            router.put(`/categories/${newCat.id}`, payload, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setShowAddCategoryModal(false);
+                    showToast("Kategori berhasil diperbarui");
+                    logActivity(
+                        "Ubah Kategori",
+                        `Kategori diperbarui: ${newCat.name}`,
+                        "Edit",
+                        "bg-blue-500",
+                    );
+                },
+                onError: (errors) => {
+                    showToast(
+                        errors.budget || "Gagal mengubah kategori",
+                        "error",
+                    );
+                },
+            });
         } else {
-            const newC = {
-                id: "c_" + Date.now(),
-                name: newCat.name,
-                budget: parseFloat(newCat.budget),
-                icon: newCat.icon || "Grid",
-                color: newCat.color || "bg-blue-500",
-            };
-            setCategories([...categories, newC]);
-            setShowAddCategoryModal(false);
-            showToast("Kategori baru berhasil ditambahkan");
-            logActivity('Tambah Kategori', `Kategori baru ditambahkan: ${newCat.name}`, 'Tag', 'bg-emerald-500');
+            router.post("/categories", payload, {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setShowAddCategoryModal(false);
+                    showToast("Kategori baru berhasil ditambahkan");
+                    logActivity(
+                        "Tambah Kategori",
+                        `Kategori baru ditambahkan: ${newCat.name}`,
+                        "Tag",
+                        "bg-emerald-500",
+                    );
+                },
+                onError: (errors) => {
+                    showToast(
+                        errors.budget || "Gagal menambahkan kategori",
+                        "error",
+                    );
+                },
+            });
         }
 
         setNewCat({
             id: null,
             name: "",
-            budget: "",
+            budget: "0",
             icon: "Grid",
             color: "bg-blue-500",
+            parentId: null,
+            priorityLevel: 5,
         });
         setShowAddCategoryModal(false);
     };
 
     const handleDeleteCategory = (id) => {
         if (window.confirm("Yakin ingin menghapus kategori ini?")) {
-            const catToDel = categories.find(c => c.id === id);
-            
+            const catToDel = categories.find((c) => c.id === id);
+
             // Jika id berupa string dengan awalan 'c_' berarti ini adalah data mock frontend
-            if (typeof id === 'string' && id.startsWith('c_')) {
+            if (typeof id === "string" && id.startsWith("c_")) {
                 setCategories(categories.filter((c) => c.id !== id));
                 showToast("Kategori berhasil dihapus", "info");
-                logActivity('Hapus Kategori', `Kategori dihapus: ${catToDel?.name}`, 'Trash2', 'bg-rose-500');
+                logActivity(
+                    "Hapus Kategori",
+                    `Kategori dihapus: ${catToDel?.name}`,
+                    "Trash2",
+                    "bg-rose-500",
+                );
                 return;
             }
 
@@ -1168,25 +1602,34 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                 preserveState: true,
                 onSuccess: () => {
                     showToast("Kategori berhasil dihapus", "info");
-                    logActivity('Hapus Kategori', `Kategori dihapus: ${catToDel?.name}`, 'Trash2', 'bg-rose-500');
+                    logActivity(
+                        "Hapus Kategori",
+                        `Kategori dihapus: ${catToDel?.name}`,
+                        "Trash2",
+                        "bg-rose-500",
+                    );
                 },
                 onError: (errors) => {
                     showToast("Gagal menghapus kategori", "error");
                     console.error("Gagal hapus kategori:", errors);
-                }
+                },
             });
         }
     };
 
-
     const handleDeleteWallet = (id) => {
         if (window.confirm("Yakin ingin menghapus kantong ini?")) {
-            const walletToDel = wallets.find(w => w.id === id);
-            
-            if (typeof id === 'string' && id.startsWith('w_')) {
+            const walletToDel = wallets.find((w) => w.id === id);
+
+            if (typeof id === "string" && id.startsWith("w_")) {
                 setWallets(wallets.filter((w) => w.id !== id));
                 showToast("Kantong berhasil dihapus", "info");
-                logActivity('Hapus Kantong', `Kantong dihapus: ${walletToDel?.name}`, 'Trash2', 'bg-rose-500');
+                logActivity(
+                    "Hapus Kantong",
+                    `Kantong dihapus: ${walletToDel?.name}`,
+                    "Trash2",
+                    "bg-rose-500",
+                );
                 return;
             }
 
@@ -1195,28 +1638,36 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                 preserveState: true,
                 onSuccess: () => {
                     showToast("Kantong berhasil dihapus", "info");
-                    logActivity('Hapus Kantong', `Kantong dihapus: ${walletToDel?.name}`, 'Trash2', 'bg-rose-500');
+                    logActivity(
+                        "Hapus Kantong",
+                        `Kantong dihapus: ${walletToDel?.name}`,
+                        "Trash2",
+                        "bg-rose-500",
+                    );
                 },
                 onError: (errors) => {
                     showToast("Gagal menghapus kantong", "error");
-                }
+                },
             });
         }
     };
 
     const handleAddWallet = (e) => {
         e.preventDefault();
-        if (!newWallet.name || !newWallet.balance) {
-            showToast("Nama dompet dan saldo awal wajib diisi", "error");
+        if (!newWallet.name) {
+            showToast("Nama kantong wajib diisi", "error");
             return;
         }
 
         const payload = {
-            ...newWallet,
-            balance: parseFloat(newWallet.balance) || 0,
+            name: newWallet.name,
+            type: newWallet.type,
+            color: newWallet.color,
+            icon: newWallet.icon,
+            is_utama: newWallet.is_utama ? 1 : 0,
         };
 
-        if (newWallet.id && typeof newWallet.id === "number") {
+        if (newWallet.id && !newWallet.id.toString().startsWith("w_")) {
             router.put(`/wallets/${newWallet.id}`, payload, {
                 preserveScroll: true,
                 preserveState: true,
@@ -1226,14 +1677,20 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                 },
                 onError: (errors) => {
                     showToast("Gagal memperbarui kantong", "error");
-                }
+                },
             });
-        } else if (newWallet.id && typeof newWallet.id === "string" && newWallet.id.startsWith("w_")) {
-            setWallets(wallets.map(w => w.id === newWallet.id ? { ...w, ...payload } : w));
+        } else if (newWallet.id && newWallet.id.toString().startsWith("w_")) {
+            setWallets(
+                wallets.map((w) =>
+                    w.id === newWallet.id
+                        ? { ...w, ...payload, isUtama: !!payload.is_utama }
+                        : w,
+                ),
+            );
             setShowAddWalletModal(false);
             showToast("Kantong berhasil diperbarui");
         } else {
-            router.post('/wallets', payload, {
+            router.post("/wallets", payload, {
                 preserveScroll: true,
                 preserveState: true,
                 onSuccess: () => {
@@ -1242,7 +1699,7 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                 },
                 onError: (errors) => {
                     showToast("Gagal menambahkan kantong", "error");
-                }
+                },
             });
         }
     };
@@ -1256,26 +1713,36 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
 
         if (newMember.id) {
             // Update existing member
-            router.put(route('users.update', newMember.id), {
-                name: newMember.name,
-                role: newMember.role,
-                permissions: newMember.permissions,
-            }, {
-                preserveState: true,
-                preserveScroll: true,
-                onSuccess: () => {
-                    setShowAddMemberModal(false);
-                    showToast("Data anggota berhasil diperbarui");
-                    logActivity('Update Anggota', `Memperbarui data anggota: ${newMember.name}`, 'User', 'bg-amber-500');
-                    setNewMember({
-                        id: null,
-                        name: "",
-                        role: "Anggota",
-                        permissions: [...ROLE_PERMISSIONS["Anggota"]],
-                    });
+            router.put(
+                route("users.update", newMember.id),
+                {
+                    name: newMember.name,
+                    role: newMember.role,
+                    permissions: newMember.permissions,
                 },
-                onError: () => showToast("Gagal memperbarui data anggota", "error")
-            });
+                {
+                    preserveState: true,
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        setShowAddMemberModal(false);
+                        showToast("Data anggota berhasil diperbarui");
+                        logActivity(
+                            "Update Anggota",
+                            `Memperbarui data anggota: ${newMember.name}`,
+                            "User",
+                            "bg-amber-500",
+                        );
+                        setNewMember({
+                            id: null,
+                            name: "",
+                            role: "Anggota",
+                            permissions: [...ROLE_PERMISSIONS["Anggota"]],
+                        });
+                    },
+                    onError: () =>
+                        showToast("Gagal memperbarui data anggota", "error"),
+                },
+            );
         } else {
             // Create new member
             const colors = [
@@ -1285,46 +1752,62 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                 "bg-amber-500",
                 "bg-sky-500",
             ];
-            const randomColor = colors[Math.floor(Math.random() * colors.length)];
-            const generatedEmail = `${newMember.name.toLowerCase().replace(/\s+/g, "")}${Math.floor(Math.random()*1000)}@Fikrikeluarga.com`;
+            const randomColor =
+                colors[Math.floor(Math.random() * colors.length)];
+            const generatedEmail = `${newMember.name.toLowerCase().replace(/\s+/g, "")}${Math.floor(Math.random() * 1000)}@Fikrikeluarga.com`;
 
-            router.post(route('users.store'), {
-                name: newMember.name,
-                email: generatedEmail,
-                password: 'password123', // Default password
-                role: newMember.role,
-                avatarColor: randomColor,
-                permissions: newMember.permissions,
-            }, {
-                preserveState: true,
-                preserveScroll: true,
-                onSuccess: () => {
-                    setShowAddMemberModal(false);
-                    showToast("Anggota keluarga baru berhasil didaftarkan");
-                    logActivity('Tambah Anggota', `Mendaftarkan anggota baru: ${newMember.name}`, 'UserPlus', 'bg-emerald-500');
-                    setNewMember({
-                        id: null,
-                        name: "",
-                        role: "Anggota",
-                        permissions: [...ROLE_PERMISSIONS["Anggota"]],
-                    });
+            router.post(
+                route("users.store"),
+                {
+                    name: newMember.name,
+                    email: generatedEmail,
+                    password: "password123", // Default password
+                    role: newMember.role,
+                    avatarColor: randomColor,
+                    permissions: newMember.permissions,
                 },
-                onError: () => showToast("Gagal mendaftarkan anggota", "error")
-            });
+                {
+                    preserveState: true,
+                    preserveScroll: true,
+                    onSuccess: () => {
+                        setShowAddMemberModal(false);
+                        showToast("Anggota keluarga baru berhasil didaftarkan");
+                        logActivity(
+                            "Tambah Anggota",
+                            `Mendaftarkan anggota baru: ${newMember.name}`,
+                            "UserPlus",
+                            "bg-emerald-500",
+                        );
+                        setNewMember({
+                            id: null,
+                            name: "",
+                            role: "Anggota",
+                            permissions: [...ROLE_PERMISSIONS["Anggota"]],
+                        });
+                    },
+                    onError: () =>
+                        showToast("Gagal mendaftarkan anggota", "error"),
+                },
+            );
         }
     };
 
     const handleDeleteMember = (id) => {
         if (window.confirm("Yakin ingin menghapus anggota ini?")) {
-            const memberToDel = members.find(m => m.id === id);
-            router.delete(route('users.destroy', id), {
+            const memberToDel = members.find((m) => m.id === id);
+            router.delete(route("users.destroy", id), {
                 preserveState: true,
                 preserveScroll: true,
                 onSuccess: () => {
                     showToast("Anggota berhasil dihapus", "info");
-                    logActivity('Hapus Anggota', `Menghapus anggota: ${memberToDel?.name}`, 'UserMinus', 'bg-rose-500');
+                    logActivity(
+                        "Hapus Anggota",
+                        `Menghapus anggota: ${memberToDel?.name}`,
+                        "UserMinus",
+                        "bg-rose-500",
+                    );
                 },
-                onError: () => showToast("Gagal menghapus anggota", "error")
+                onError: () => showToast("Gagal menghapus anggota", "error"),
             });
         }
     };
@@ -1342,30 +1825,46 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
     };
 
     const handleToggleMemberPermission = (memberId, permKey) => {
-        const memberToUpdate = members.find(m => m.id === memberId);
+        const memberToUpdate = members.find((m) => m.id === memberId);
         if (!memberToUpdate) return;
-        
+
         const perms = memberToUpdate.permissions || [];
         const has = perms.includes(permKey);
-        const newPerms = has ? perms.filter(p => p !== permKey) : [...perms, permKey];
+        const newPerms = has
+            ? perms.filter((p) => p !== permKey)
+            : [...perms, permKey];
 
         // Optimistic UI update
-        setMembers(prev => prev.map(m => m.id === memberId ? { ...m, permissions: newPerms } : m));
+        setMembers((prev) =>
+            prev.map((m) =>
+                m.id === memberId ? { ...m, permissions: newPerms } : m,
+            ),
+        );
 
-        router.put(route('users.update', memberId), {
-            name: memberToUpdate.name,
-            role: memberToUpdate.role,
-            permissions: newPerms,
-        }, {
-            preserveState: true,
-            preserveScroll: true,
-            onSuccess: () => showToast("Hak akses berhasil diperbarui"),
-            onError: () => {
-                showToast("Gagal memperbarui hak akses", "error");
-                // Revert optimistic update
-                setMembers(prev => prev.map(m => m.id === memberId ? { ...m, permissions: perms } : m));
-            }
-        });
+        router.put(
+            route("users.update", memberId),
+            {
+                name: memberToUpdate.name,
+                role: memberToUpdate.role,
+                permissions: newPerms,
+            },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                onSuccess: () => showToast("Hak akses berhasil diperbarui"),
+                onError: () => {
+                    showToast("Gagal memperbarui hak akses", "error");
+                    // Revert optimistic update
+                    setMembers((prev) =>
+                        prev.map((m) =>
+                            m.id === memberId
+                                ? { ...m, permissions: perms }
+                                : m,
+                        ),
+                    );
+                },
+            },
+        );
     };
 
     const handleNewMemberRoleChange = (role) => {
@@ -1389,11 +1888,14 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
     };
 
     const downloadTemplate = () => {
-        const csvContent = "Tanggal,Deskripsi,Nominal,Kategori,Dompet,Anggota Keluarga\n" +
-                           "2026-07-08,Belanja Dapur Harian,150000,Kebutuhan Dapur,Mandiri Ibu,Ibu\n" +
-                           "2026-07-08,Isi Bensin Motor,50000,Bensin,BCA Ayah,Ayah (Admin)\n" +
-                           "2026-07-08,Kopi Sore KRL,35000,Ngopi,Uang Tunai,Kakak";
-        const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+        const csvContent =
+            "Tanggal,Deskripsi,Nominal,Kategori,Dompet,Anggota Keluarga\n" +
+            "2026-07-08,Belanja Dapur Harian,150000,Kebutuhan Dapur,Mandiri Ibu,Ibu\n" +
+            "2026-07-08,Isi Bensin Motor,50000,Bensin,BCA Ayah,Ayah (Admin)\n" +
+            "2026-07-08,Kopi Sore KRL,35000,Ngopi,Uang Tunai,Kakak";
+        const blob = new Blob([csvContent], {
+            type: "text/csv;charset=utf-8;",
+        });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.setAttribute("href", url);
@@ -1405,23 +1907,23 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
 
     const parseCSV = (text) => {
         if (!text) return [];
-        
+
         // Detect delimiter: comma or semicolon (Indonesian local excel export)
-        let delimiter = ',';
-        const firstLine = text.split(/\r?\n/)[0] || '';
-        if (firstLine.includes(';')) {
-            delimiter = ';';
+        let delimiter = ",";
+        const firstLine = text.split(/\r?\n/)[0] || "";
+        if (firstLine.includes(";")) {
+            delimiter = ";";
         }
-        
+
         const lines = [];
         let currentLine = [];
-        let currentToken = '';
+        let currentToken = "";
         let inQuotes = false;
-        
+
         for (let i = 0; i < text.length; i++) {
             const char = text[i];
             if (char === '"') {
-                if (inQuotes && text[i+1] === '"') {
+                if (inQuotes && text[i + 1] === '"') {
                     currentToken += '"';
                     i++; // skip next quote
                 } else {
@@ -1429,15 +1931,15 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                 }
             } else if (char === delimiter && !inQuotes) {
                 currentLine.push(currentToken.trim());
-                currentToken = '';
-            } else if ((char === '\n' || char === '\r') && !inQuotes) {
-                if (char === '\r' && text[i+1] === '\n') {
+                currentToken = "";
+            } else if ((char === "\n" || char === "\r") && !inQuotes) {
+                if (char === "\r" && text[i + 1] === "\n") {
                     i++;
                 }
                 currentLine.push(currentToken.trim());
                 lines.push(currentLine);
                 currentLine = [];
-                currentToken = '';
+                currentToken = "";
             } else {
                 currentToken += char;
             }
@@ -1446,21 +1948,21 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
             currentLine.push(currentToken.trim());
             lines.push(currentLine);
         }
-        
+
         if (lines.length < 2) return [];
         const results = [];
-        
+
         for (let i = 1; i < lines.length; i++) {
             const row = lines[i];
-            if (row.length < 3 || (row.length === 1 && row[0] === '')) continue;
-            
+            if (row.length < 3 || (row.length === 1 && row[0] === "")) continue;
+
             results.push({
-                date: row[0] || '',
-                description: row[1] || '',
+                date: row[0] || "",
+                description: row[1] || "",
                 amount: parseFloat(row[2]) || 0,
-                categoryName: row[3] || '',
-                walletName: row[4] || '',
-                memberName: row[5] || ''
+                categoryName: row[3] || "",
+                walletName: row[4] || "",
+                memberName: row[5] || "",
             });
         }
         return results;
@@ -1471,14 +1973,17 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
             const file = e.target.files[0];
             if (!file) return;
             setImportFileName(file.name);
-            
+
             const reader = new FileReader();
             reader.onload = (event) => {
                 try {
                     const text = event.target.result;
                     const parsed = parseCSV(text);
                     if (parsed.length === 0) {
-                        showToast("File CSV kosong atau format tidak sesuai", "error");
+                        showToast(
+                            "File CSV kosong atau format tidak sesuai",
+                            "error",
+                        );
                     } else {
                         showToast("Berhasil memproses pratinjau data");
                     }
@@ -1500,39 +2005,50 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
     };
 
     const handleCellEdit = (index, field, value) => {
-        setImportedData(prev => prev.map((item, idx) => {
-            if (idx === index) {
-                return { ...item, [field]: value };
-            }
-            return item;
-        }));
+        setImportedData((prev) =>
+            prev.map((item, idx) => {
+                if (idx === index) {
+                    return { ...item, [field]: value };
+                }
+                return item;
+            }),
+        );
     };
 
     const handleDeleteImportRow = (index) => {
-        setImportedData(prev => prev.filter((_, idx) => idx !== index));
+        setImportedData((prev) => prev.filter((_, idx) => idx !== index));
     };
 
     // Filtered data based on search query in import preview
     const filteredImportedData = useMemo(() => {
-        return importedData.map((item, idx) => ({ ...item, originalIndex: idx }))
-            .filter(item => {
+        return importedData
+            .map((item, idx) => ({ ...item, originalIndex: idx }))
+            .filter((item) => {
                 const query = importSearchQuery.toLowerCase();
-                return (item.description || '').toLowerCase().includes(query) ||
-                       (item.categoryName || '').toLowerCase().includes(query) ||
-                       (item.walletName || '').toLowerCase().includes(query) ||
-                       (item.memberName || '').toLowerCase().includes(query) ||
-                       (item.date || '').includes(query);
+                return (
+                    (item.description || "").toLowerCase().includes(query) ||
+                    (item.categoryName || "").toLowerCase().includes(query) ||
+                    (item.walletName || "").toLowerCase().includes(query) ||
+                    (item.memberName || "").toLowerCase().includes(query) ||
+                    (item.date || "").includes(query)
+                );
             });
     }, [importedData, importSearchQuery]);
 
     // Paginated data in import preview
     const paginatedImportedData = useMemo(() => {
         const startIndex = (importCurrentPage - 1) * importItemsPerPage;
-        return filteredImportedData.slice(startIndex, startIndex + importItemsPerPage);
+        return filteredImportedData.slice(
+            startIndex,
+            startIndex + importItemsPerPage,
+        );
     }, [filteredImportedData, importCurrentPage, importItemsPerPage]);
 
     const totalImportPages = useMemo(() => {
-        return Math.max(1, Math.ceil(filteredImportedData.length / importItemsPerPage));
+        return Math.max(
+            1,
+            Math.ceil(filteredImportedData.length / importItemsPerPage),
+        );
     }, [filteredImportedData, importItemsPerPage]);
 
     useEffect(() => {
@@ -1545,53 +2061,76 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
         try {
             if (importedData.length === 0) return;
             setIsImporting(true);
-            
-            const transactionsToPost = importedData.map(row => {
-                const rowCatName = row.categoryName || '';
-                const rowWalletName = row.walletName || '';
-                const rowMemberName = row.memberName || '';
 
-                const cat = categories.find(c => c.name && c.name.toLowerCase() === rowCatName.toLowerCase()) 
-                    || categories.find(c => c.name === 'Lainnya');
-                    
-                const wal = wallets.find(w => w.name && w.name.toLowerCase() === rowWalletName.toLowerCase());
-                
-                const mem = members.find(m => m.name && m.name.toLowerCase() === rowMemberName.toLowerCase()) 
-                    || currentUser;
-                
+            const transactionsToPost = importedData.map((row) => {
+                const rowCatName = row.categoryName || "";
+                const rowWalletName = row.walletName || "";
+                const rowMemberName = row.memberName || "";
+
+                const cat =
+                    categories.find(
+                        (c) =>
+                            c.name &&
+                            c.name.toLowerCase() === rowCatName.toLowerCase(),
+                    ) || categories.find((c) => c.name === "Lainnya");
+
+                const wal = wallets.find(
+                    (w) =>
+                        w.name &&
+                        w.name.toLowerCase() === rowWalletName.toLowerCase(),
+                );
+
+                const mem =
+                    members.find(
+                        (m) =>
+                            m.name &&
+                            m.name.toLowerCase() ===
+                                rowMemberName.toLowerCase(),
+                    ) || currentUser;
+
                 return {
                     date: row.date,
                     description: row.description,
                     amount: row.amount,
-                    type: 'expense',
+                    type: "expense",
                     category_id: cat ? cat.id : null,
                     wallet_id: wal ? wal.id : null,
-                    user_id: mem ? mem.id : (currentUser ? currentUser.id : null)
+                    user_id: mem ? mem.id : currentUser ? currentUser.id : null,
                 };
             });
-            
-            if (transactionsToPost.some(t => !t.wallet_id)) {
-                showToast("Gagal: Beberapa baris data tidak memiliki Dompet yang cocok.", "error");
+
+            if (transactionsToPost.some((t) => !t.wallet_id)) {
+                showToast(
+                    "Gagal: Beberapa baris data tidak memiliki Dompet yang cocok.",
+                    "error",
+                );
                 setIsImporting(false);
                 return;
             }
-            
-            axios.post('/transactions', { transactions: transactionsToPost })
-                .then(res => {
-                    showToast("Berhasil mengimpor " + transactionsToPost.length + " transaksi pengeluaran.");
+
+            axios
+                .post("/transactions", { transactions: transactionsToPost })
+                .then((res) => {
+                    showToast(
+                        "Berhasil mengimpor " +
+                            transactionsToPost.length +
+                            " transaksi pengeluaran.",
+                    );
                     setImportedData([]);
                     setImportFileName("");
                     setIsAddingTx(false);
                     setActiveTab("pencatatan");
-                    
+
                     router.reload({
                         preserveState: true,
                         onSuccess: () => {
-                            axios.get('/api/dashboard/metrics?force_recalculate=true');
-                        }
+                            axios.get(
+                                "/api/dashboard/metrics?force_recalculate=true",
+                            );
+                        },
                     });
                 })
-                .catch(err => {
+                .catch((err) => {
                     console.error(err);
                     showToast("Gagal mengirim data import ke server.", "error");
                 })
@@ -1618,7 +2157,7 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
             <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans selection:bg-blue-500 selection:text-white">
                 {/* === NOTIFIKASI TOAST === */}
                 {toast && (
-                    <div className="fixed top-4 right-4 left-4 md:left-auto md:w-96 z-50 animate-bounce">
+                    <div className="fixed top-4 right-4 left-4 md:left-auto md:w-96 z-[9999] animate-bounce">
                         <div
                             className={`p-4 rounded-xl shadow-lg border flex items-center space-x-3 ${
                                 toast.type === "success"
@@ -1637,11 +2176,13 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                             {toast.type === "info" && (
                                 <Info className="w-5 h-5 text-blue-600" />
                             )}
-                            <p className="text-sm font-semibold">{toast.message}</p>
+                            <p className="text-sm font-semibold">
+                                {toast.message}
+                            </p>
                         </div>
                     </div>
                 )}
-                
+
                 <div className="max-w-4xl w-full grid grid-cols-1 md:grid-cols-2 bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 animate-fadeIn">
                     {/* SISI KIRI: BRANDING & MOCKUP VISUAL */}
                     <div className="hidden md:flex flex-col justify-between p-10 bg-gradient-to-br from-blue-600 to-indigo-700 text-white relative overflow-hidden">
@@ -1685,8 +2226,6 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                             </p>
                         </div>
 
-
-
                         {/* FORM CREDENTIALS LOGIN */}
                         <form
                             onSubmit={handleCredentialLogin}
@@ -1722,7 +2261,9 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                 <div className="relative">
                                     <Lock className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                                     <input
-                                        type={showPassword ? "text" : "password"}
+                                        type={
+                                            showPassword ? "text" : "password"
+                                        }
                                         placeholder="••••••••"
                                         value={loginPassword}
                                         onChange={(e) =>
@@ -1732,9 +2273,15 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                     />
                                     <button
                                         type="button"
-                                        onClick={() => setShowPassword(!showPassword)}
+                                        onClick={() =>
+                                            setShowPassword(!showPassword)
+                                        }
                                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                                        title={showPassword ? "Sembunyikan Sandi" : "Lihat Sandi"}
+                                        title={
+                                            showPassword
+                                                ? "Sembunyikan Sandi"
+                                                : "Lihat Sandi"
+                                        }
                                     >
                                         {showPassword ? (
                                             <EyeOff className="w-4 h-4" />
@@ -1779,109 +2326,40 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                         ? "Profile"
                                         : activeTab}
                         </h1>
+                        {activeTab !== "profile" && (
+                            <p className="text-[10px] md:text-xs font-bold text-slate-400 mt-1 flex items-center gap-1.5 animate-fadeIn">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                Penyaringan: {[
+                                    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+                                    "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+                                ][selectedMonth - 1]}
+                                {selectedMonth !== selectedEndMonth && (
+                                    <> - {[
+                                        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+                                        "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+                                    ][selectedEndMonth - 1]}
+                                    </>
+                                )}{" "}{selectedYear}
+                            </p>
+                        )}
                     </div>
 
                     {/* KANAN: Hanya Icon Tanpa Card (Kalender, Notifikasi, Profile) */}
                     <div className="flex items-center space-x-1 md:space-x-2">
-                        {/* 1. Calendar Icon (Custom Dropdown) */}
+                        {/* 1. Calendar Icon (Custom Dropdown - Month Range Picker) */}
                         <div className="relative">
-                            <button
-                                onClick={() =>
-                                    setShowCalendarDropdown(
-                                        !showCalendarDropdown,
-                                    )
-                                }
-                                className="flex items-center justify-center w-9 h-9 md:w-10 md:h-10 text-slate-400 hover:text-blue-600 transition-colors rounded-full hover:bg-slate-100"
-                            >
-                                <Calendar className="w-5 h-5 md:w-5 md:h-5" />
-                            </button>
-
-                            {showCalendarDropdown && (
-                                <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 overflow-hidden animate-fadeIn origin-top-right">
-                                    <div className="p-3 border-b border-slate-100 flex items-center justify-between bg-blue-50/50">
-                                        <button
-                                            onClick={() =>
-                                                setSelectedYear(
-                                                    selectedYear - 1,
-                                                )
-                                            }
-                                            className="p-1.5 hover:bg-white rounded-lg text-slate-500 transition-colors"
-                                        >
-                                            <svg
-                                                className="w-4 h-4"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth="2"
-                                                    d="M15 19l-7-7 7-7"
-                                                />
-                                            </svg>
-                                        </button>
-                                        <span className="font-bold text-slate-800">
-                                            {selectedYear}
-                                        </span>
-                                        <button
-                                            onClick={() =>
-                                                setSelectedYear(
-                                                    selectedYear + 1,
-                                                )
-                                            }
-                                            className="p-1.5 hover:bg-white rounded-lg text-slate-500 transition-colors"
-                                        >
-                                            <svg
-                                                className="w-4 h-4"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                viewBox="0 0 24 24"
-                                            >
-                                                <path
-                                                    strokeLinecap="round"
-                                                    strokeLinejoin="round"
-                                                    strokeWidth="2"
-                                                    d="M9 5l7 7-7 7"
-                                                />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                    <div className="p-3 grid grid-cols-3 gap-2">
-                                        {[
-                                            "Jan",
-                                            "Feb",
-                                            "Mar",
-                                            "Apr",
-                                            "Mei",
-                                            "Jun",
-                                            "Jul",
-                                            "Agt",
-                                            "Sep",
-                                            "Okt",
-                                            "Nov",
-                                            "Des",
-                                        ].map((m, i) => (
-                                            <button
-                                                key={i}
-                                                onClick={() => {
-                                                    setSelectedMonth(i + 1);
-                                                    setShowCalendarDropdown(
-                                                        false,
-                                                    );
-                                                }}
-                                                className={`py-2 text-xs font-semibold rounded-xl transition-all ${
-                                                    selectedMonth === i + 1
-                                                        ? "bg-blue-600 text-white shadow-md shadow-blue-200"
-                                                        : "text-slate-600 hover:bg-slate-100"
-                                                }`}
-                                            >
-                                                {m}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+                            <MonthRangePicker
+                                value={{
+                                    startMonth: selectedMonth,
+                                    endMonth: selectedEndMonth,
+                                    year: selectedYear,
+                                }}
+                                onChange={(val) => {
+                                    setSelectedMonth(val.startMonth);
+                                    setSelectedEndMonth(val.endMonth);
+                                    setSelectedYear(val.year);
+                                }}
+                            />
                         </div>
 
                         {/* 2. Notification Icon */}
@@ -1955,7 +2433,7 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
 
             {/* === NOTIFIKASI TOAST === */}
             {toast && (
-                <div className="fixed top-20 right-4 left-4 md:left-auto md:w-96 z-50 animate-bounce">
+                <div className="fixed top-20 right-4 left-4 md:left-auto md:w-96 z-[9999] animate-bounce">
                     <div
                         className={`p-4 rounded-xl shadow-lg border flex items-center space-x-3 ${
                             toast.type === "success"
@@ -2040,17 +2518,21 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                             label: "Dashboard",
                             icon: LayoutDashboard,
                         },
-                        (hasPermission("kelola_dompet") || hasPermission("lihat_dompet")) && { id: "dompet", label: "Kantong", icon: Wallet },
-                        hasPermission("atur_budget") && { id: "budgeting", label: "Budgeting", icon: PieChart },
-                        hasPermission("ekspor_data") && { id: "import", label: "Import Data", icon: Upload },
-                        hasPermission("kelola_kategori") && {
-                            id: "kategori",
-                            label: "Kategori",
-                            icon: Tag,
-                            action: () => {
-                                setActiveTab("profile");
-                                setActiveSettingsTab("kategori");
-                            }
+                        (hasPermission("kelola_dompet") ||
+                            hasPermission("lihat_dompet")) && {
+                            id: "dompet",
+                            label: "Kantong",
+                            icon: Wallet,
+                        },
+                        hasPermission("atur_budget") && {
+                            id: "budgeting",
+                            label: "Budgeting",
+                            icon: PieChart,
+                        },
+                        hasPermission("ekspor_data") && {
+                            id: "import",
+                            label: "Import Data",
+                            icon: Upload,
                         },
                         {
                             id: "sampah",
@@ -2061,7 +2543,9 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                             id: "profile",
                             label: (
                                 <div className="flex items-center gap-1.5">
-                                    <span>{currentUser?.name || "Profile"}</span>
+                                    <span>
+                                        {currentUser?.name || "Profile"}
+                                    </span>
                                     <BadgeCheck className="w-4 h-4 text-white fill-blue-500 flex-shrink-0" />
                                 </div>
                             ),
@@ -2069,209 +2553,1075 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                             action: () => {
                                 setActiveTab("profile");
                                 setActiveSettingsTab("profile");
-                            }
+                            },
                         },
-                    ].filter(Boolean).map((item) => {
-                        const IconComponent = item.icon;
-                        let isSelected = activeTab === item.id;
-                        if (item.id === "kategori") {
-                            isSelected = activeTab === "profile" && activeSettingsTab === "kategori";
-                        } else if (item.id === "profile") {
-                            isSelected = activeTab === "profile" && activeSettingsTab !== "kategori";
-                        }
-                        
-                        return (
-                            <button
-                                key={item.id}
-                                onClick={() => {
-                                    if (item.action) {
-                                        item.action();
-                                    } else {
-                                        setActiveTab(item.id);
-                                    }
-                                    if (item.id !== "pencatatan") {
-                                        setIsAddingTx(false);
-                                    }
-                                }}
-                                className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-2xl text-sm font-bold transition-all ${
-                                    isSelected
-                                        ? "bg-white text-blue-600 shadow-sm border border-slate-100/50"
-                                        : "text-slate-500 hover:bg-slate-200/50 hover:text-slate-800"
-                                }`}
-                            >
-                                {item.icon === "PROFILE_PHOTO" ? (
-                                    currentUser?.avatar ? (
-                                        <img src={`/storage/${currentUser.avatar}`} alt="Avatar" className={`w-6 h-6 rounded-full object-cover border ${isSelected ? "border-white" : "border-transparent"}`} />
+                    ]
+                        .filter(Boolean)
+                        .map((item) => {
+                            const IconComponent = item.icon;
+                            let isSelected = activeTab === item.id;
+                            if (item.id === "profile") {
+                                isSelected = activeTab === "profile";
+                            }
+
+                            return (
+                                <button
+                                    key={item.id}
+                                    onClick={() => {
+                                        if (item.action) {
+                                            item.action();
+                                        } else {
+                                            setActiveTab(item.id);
+                                        }
+                                        if (item.id !== "pencatatan") {
+                                            setIsAddingTx(false);
+                                        }
+                                    }}
+                                    className={`w-full flex items-center space-x-3 px-4 py-3.5 rounded-2xl text-sm font-bold transition-all ${
+                                        isSelected
+                                            ? "bg-white text-blue-600 shadow-sm border border-slate-100/50"
+                                            : "text-slate-500 hover:bg-slate-200/50 hover:text-slate-800"
+                                    }`}
+                                >
+                                    {item.icon === "PROFILE_PHOTO" ? (
+                                        currentUser?.avatar ? (
+                                            <img
+                                                src={`/storage/${currentUser.avatar}`}
+                                                alt="Avatar"
+                                                className={`w-6 h-6 rounded-full object-cover border ${isSelected ? "border-white" : "border-transparent"}`}
+                                            />
+                                        ) : (
+                                            <div
+                                                className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] ${isSelected ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-500"}`}
+                                            >
+                                                {currentUser?.name
+                                                    ? currentUser.name
+                                                          .charAt(0)
+                                                          .toUpperCase()
+                                                    : "U"}
+                                            </div>
+                                        )
                                     ) : (
-                                        <div
-                                            className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] ${isSelected ? "bg-blue-600 text-white" : "bg-slate-200 text-slate-500"}`}
-                                        >
-                                            {currentUser?.name
-                                                ? currentUser.name
-                                                      .charAt(0)
-                                                      .toUpperCase()
-                                                : "U"}
-                                        </div>
-                                    )
-                                ) : (
-                                    <IconComponent
-                                        className={`w-5 h-5 ${isSelected ? "text-blue-600" : "text-slate-400"}`}
-                                    />
-                                )}
-                                <span>{item.label}</span>
-                            </button>
-                        );
-                    })}
+                                        <IconComponent
+                                            className={`w-5 h-5 ${isSelected ? "text-blue-600" : "text-slate-400"}`}
+                                        />
+                                    )}
+                                    <span>{item.label}</span>
+                                </button>
+                            );
+                        })}
                 </aside>
 
                 {/* CONTAINER DINAMIS SESUAI TAB AKTIF */}
                 <section className="col-span-1 md:col-span-3 space-y-6">
                     {/* TAB 1: DASHBOARD */}
-                    {activeTab === "dashboard" && <ExecutiveDashboard />}
+                    {activeTab === "dashboard" && (
+                        <ExecutiveDashboard
+                            categories={categories}
+                            transactions={transactions}
+                            currentUser={currentUser}
+                        />
+                    )}
 
                     {/* TAB 2: CATAT PENGELUARAN HARIAN */}
                     {activeTab === "pencatatan" && (
                         <div className="space-y-6 animate-fadeIn">
-                                {/* HALAMAN INPUT TRANSAKSI BARU (MODERN & SIMPLE) */}
-                                <div className="space-y-4 animate-fadeIn">
-                                    <form
-                                        onSubmit={handleSaveBulkTransactions}
-                                        className="space-y-4"
-                                    >
-                                        {bulkTransactions.map((tx, idx) => (
-                                            <div
-                                                key={tx.id}
-                                                className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative group transition-all hover:shadow-md"
-                                            >
-                                                {/* Tombol Hapus Baris */}
-                                                {bulkTransactions.length >
-                                                    1 && (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            handleRemoveBulkRow(
-                                                                idx,
-                                                            )
-                                                        }
-                                                        className="absolute -top-3 -right-3 w-8 h-8 bg-white border border-rose-100 rounded-full flex items-center justify-center text-rose-500 hover:bg-rose-50 hover:scale-110 shadow-sm transition-all z-10"
-                                                        title="Hapus"
-                                                    >
-                                                        <Trash className="w-4 h-4" />
-                                                    </button>
-                                                )}
-                                                {/* Header Baris / Nomor Form */}
-                                                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
-                                                    <div className="flex items-center space-x-2">
-                                                        <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-black shadow-sm">
-                                                            {idx + 1}
-                                                        </div>
-                                                        <span className="text-sm font-bold text-slate-700">
-                                                            Catatan Pengeluaran
-                                                        </span>
+                            {/* HALAMAN INPUT TRANSAKSI BARU (MODERN & SIMPLE) */}
+                            <div className="space-y-4 animate-fadeIn">
+                                <form
+                                    onSubmit={handleSaveBulkTransactions}
+                                    className="space-y-4"
+                                >
+                                    {bulkTransactions.map((tx, idx) => (
+                                        <div
+                                            key={tx.id}
+                                            className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative group transition-all hover:shadow-md"
+                                        >
+                                            {/* Tombol Hapus Baris */}
+                                            {bulkTransactions.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        handleRemoveBulkRow(idx)
+                                                    }
+                                                    className="absolute -top-3 -right-3 w-8 h-8 bg-white border border-rose-100 rounded-full flex items-center justify-center text-rose-500 hover:bg-rose-50 hover:scale-110 shadow-sm transition-all z-10"
+                                                    title="Hapus"
+                                                >
+                                                    <Trash className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                            {/* Header Baris / Nomor Form */}
+                                            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                                                <div className="flex items-center space-x-2">
+                                                    <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-black shadow-sm">
+                                                        {idx + 1}
                                                     </div>
-                                                    <span className="text-xs text-slate-400 font-medium">
-                                                        {idx + 1} dari{" "}
-                                                        {
-                                                            bulkTransactions.length
-                                                        }
+                                                    <span className="text-sm font-bold text-slate-700">
+                                                        Catatan Pengeluaran
                                                     </span>
                                                 </div>
+                                                <span className="text-xs text-slate-400 font-medium">
+                                                    {idx + 1} dari{" "}
+                                                    {bulkTransactions.length}
+                                                </span>
+                                            </div>
 
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                                                    {/* 1. Nominal (Paling atas sesuai request) */}
-                                                    <div className="md:col-span-2">
-                                                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
-                                                            Nominal
-                                                        </label>
-                                                        <div className="relative">
-                                                            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                                                <span className="text-slate-500 font-bold text-lg">
-                                                                    Rp
-                                                                </span>
-                                                            </div>
-                                                            <input
-                                                                type="text"
-                                                                inputMode="numeric"
-                                                                placeholder="0"
-                                                                value={
-                                                                    tx.amount
-                                                                        ? new Intl.NumberFormat(
-                                                                              "id-ID",
-                                                                          ).format(
-                                                                              tx.amount,
-                                                                          )
-                                                                        : ""
-                                                                }
-                                                                onChange={(
-                                                                    e,
-                                                                ) => {
-                                                                    const rawValue =
-                                                                        e.target.value.replace(
-                                                                            /\D/g,
-                                                                            "",
-                                                                        );
-                                                                    handleUpdateBulkField(
-                                                                        idx,
-                                                                        "amount",
-                                                                        rawValue
-                                                                            ? parseInt(
-                                                                                  rawValue,
-                                                                                  10,
-                                                                              )
-                                                                            : "",
-                                                                    );
-                                                                }}
-                                                                className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 text-lg font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                                                                autoFocus={
-                                                                    idx === 0
-                                                                }
-                                                            />
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                                {/* 1. Nominal (Paling atas sesuai request) */}
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                                                        Nominal
+                                                    </label>
+                                                    <div className="relative">
+                                                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                                                            <span className="text-slate-500 font-bold text-lg">
+                                                                Rp
+                                                            </span>
                                                         </div>
-                                                    </div>
-
-                                                    {/* Deskripsi (Kita tetap butuh untuk data transaksi) */}
-                                                    <div className="md:col-span-2">
-                                                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
-                                                            Catatan / Deskripsi
-                                                        </label>
                                                         <input
                                                             type="text"
-                                                            placeholder="Makan siang, bensin, dll..."
+                                                            inputMode="numeric"
+                                                            placeholder="0"
                                                             value={
-                                                                tx.description
+                                                                tx.amount
+                                                                    ? new Intl.NumberFormat(
+                                                                          "id-ID",
+                                                                      ).format(
+                                                                          tx.amount,
+                                                                      )
+                                                                    : ""
+                                                            }
+                                                            onChange={(e) => {
+                                                                const rawValue =
+                                                                    e.target.value.replace(
+                                                                        /\D/g,
+                                                                        "",
+                                                                    );
+                                                                handleUpdateBulkField(
+                                                                    idx,
+                                                                    "amount",
+                                                                    rawValue
+                                                                        ? parseInt(
+                                                                              rawValue,
+                                                                              10,
+                                                                          )
+                                                                        : "",
+                                                                );
+                                                            }}
+                                                            className="w-full pl-12 pr-4 py-3 rounded-xl border border-slate-200 text-lg font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                                            autoFocus={
+                                                                idx === 0
+                                                            }
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {/* Deskripsi (Kita tetap butuh untuk data transaksi) */}
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                                                        Catatan / Deskripsi
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Makan siang, bensin, dll..."
+                                                        value={tx.description}
+                                                        onChange={(e) =>
+                                                            handleUpdateBulkField(
+                                                                idx,
+                                                                "description",
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                                                    />
+                                                </div>
+
+                                                {/* 2. Kategori */}
+                                                <div>
+                                                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                                                        Kategori
+                                                    </label>
+                                                    <div className="relative">
+                                                        <select
+                                                            value={
+                                                                tx.categoryId
                                                             }
                                                             onChange={(e) =>
                                                                 handleUpdateBulkField(
                                                                     idx,
-                                                                    "description",
+                                                                    "categoryId",
                                                                     e.target
                                                                         .value,
                                                                 )
                                                             }
-                                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                                                        />
+                                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+                                                        >
+                                                            {categories.map(
+                                                                (c) => (
+                                                                    <option
+                                                                        key={
+                                                                            c.id
+                                                                        }
+                                                                        value={
+                                                                            c.id
+                                                                        }
+                                                                    >
+                                                                        {c.name}
+                                                                    </option>
+                                                                ),
+                                                            )}
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                {/* 3. Dompet */}
+                                                <div>
+                                                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                                                        Dompet / Sumber Dana
+                                                    </label>
+                                                    <div className="relative">
+                                                        <select
+                                                            value={tx.walletId}
+                                                            onChange={(e) =>
+                                                                handleUpdateBulkField(
+                                                                    idx,
+                                                                    "walletId",
+                                                                    e.target
+                                                                        .value,
+                                                                )
+                                                            }
+                                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+                                                        >
+                                                            {wallets.map(
+                                                                (w) => (
+                                                                    <option
+                                                                        key={
+                                                                            w.id
+                                                                        }
+                                                                        value={
+                                                                            w.id
+                                                                        }
+                                                                    >
+                                                                        {w.name}
+                                                                    </option>
+                                                                ),
+                                                            )}
+                                                        </select>
+                                                    </div>
+                                                </div>
+
+                                                {/* 4. Tanggal (Pilih bulan & tahun pop-up native) */}
+                                                <div className="md:col-span-2">
+                                                    <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
+                                                        Tanggal
+                                                    </label>
+                                                    <input
+                                                        type="date"
+                                                        value={tx.date}
+                                                        onChange={(e) =>
+                                                            handleUpdateBulkField(
+                                                                idx,
+                                                                "date",
+                                                                e.target.value,
+                                                            )
+                                                        }
+                                                        className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+
+                                    {/* Button Tambah Baris (Outline putus-putus) */}
+                                    <button
+                                        type="button"
+                                        onClick={handleAddBulkRow}
+                                        className="w-full py-4 rounded-2xl border-2 border-dashed border-blue-300 text-blue-600 font-bold text-sm flex items-center justify-center space-x-2 hover:bg-blue-50 hover:border-blue-400 transition-all"
+                                    >
+                                        <Plus className="w-5 h-5" />
+                                        <span>Tambah Baris</span>
+                                    </button>
+
+                                    {/* Action Buttons: Batal & Simpan */}
+                                    <div className="flex items-center justify-end space-x-4 pt-6 pb-32 md:pb-6">
+                                        <button
+                                            onClick={() => {
+                                                setActiveTab("dompet");
+                                                setIsAddingTx(false);
+                                                setBulkTransactions([]);
+                                            }}
+                                            className="px-6 py-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-all"
+                                        >
+                                            Batal
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className="px-8 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center space-x-2"
+                                        >
+                                            <Check className="w-4 h-4" />
+                                            <span>Simpan</span>
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* TAB: BUDGETING */}
+                    {activeTab === "budgeting" && (
+                        <BudgetingTab
+                            categories={categories}
+                            transactions={transactions}
+                            wallets={wallets}
+                            budgetStartDate={budgetStartDate}
+                            budgetEndDate={budgetEndDate}
+                            formatIDR={formatIDR}
+                            showToast={showToast}
+                            setActiveTab={setActiveTab}
+                            handleStartAddTransaction={
+                                handleStartAddTransaction
+                            }
+                            currentUser={currentUser}
+                        />
+                    )}
+
+                    {/* TAB 4: DOMPET & AKUN */}
+                    {activeTab === "dompet" && (
+                        <div className="space-y-6 animate-fadeIn">
+                            {selectedWalletId === null ? (
+                                <>
+                                    {/* LIST VIEW KANTONG */}
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                        <div>
+                                            <h3 className="font-bold text-lg text-slate-900">
+                                                Kantong Keuangan
+                                            </h3>
+                                            <p className="text-xs text-slate-500">
+                                                Kelola rekening, e-wallet, dan
+                                                uang tunai Anda
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* List Kantong Grid (Mobile Friendly, No Slide) */}
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                        {wallets
+                                            .filter((w) => {
+                                                if (!currentUser) return false;
+
+                                                // Sembunyikan Dompet Utama milik user lain
+                                                if (
+                                                    w.isUtama &&
+                                                    w.userId != currentUser.id
+                                                )
+                                                    return false;
+
+                                                if (
+                                                    currentUser.role === "Admin"
+                                                )
+                                                    return true;
+                                                const walletOwner =
+                                                    members.find(
+                                                        (m) =>
+                                                            m.id === w.userId,
+                                                    );
+                                                const ownerRole =
+                                                    walletOwner?.role;
+
+                                                // Istri hanya melihat kantong Istri & kantong global (tidak ada user id)
+                                                if (
+                                                    currentUser.role === "Istri"
+                                                ) {
+                                                    if (ownerRole === "Suami")
+                                                        return false;
+                                                    return true;
+                                                }
+
+                                                // Suami bisa melihat kantong Suami & kantong Istri & kantong global
+                                                if (
+                                                    currentUser.role === "Suami"
+                                                ) {
+                                                    return true;
+                                                }
+
+                                                return true;
+                                            })
+                                            .map((w) => {
+                                                const walletOwner =
+                                                    members.find(
+                                                        (m) =>
+                                                            m.id === w.userId,
+                                                    );
+                                                const ownerRole =
+                                                    walletOwner?.role;
+                                                const isOwnerIstri =
+                                                    ownerRole?.toLowerCase() ===
+                                                        "istri" ||
+                                                    w.name
+                                                        .toLowerCase()
+                                                        .includes("istri") ||
+                                                    w.name
+                                                        .toLowerCase()
+                                                        .includes("ibu");
+                                                const isOwnerSuami =
+                                                    ownerRole?.toLowerCase() ===
+                                                        "suami" ||
+                                                    w.name
+                                                        .toLowerCase()
+                                                        .includes("suami") ||
+                                                    w.name
+                                                        .toLowerCase()
+                                                        .includes("bapak") ||
+                                                    w.name
+                                                        .toLowerCase()
+                                                        .includes("ayah");
+
+                                                const canTopUp =
+                                                    hasPermission(
+                                                        "topup_dompet",
+                                                    ) &&
+                                                    (currentUser?.role?.toLowerCase() ===
+                                                        "admin" ||
+                                                        (currentUser?.role?.toLowerCase() ===
+                                                            "suami" &&
+                                                            !isOwnerIstri) ||
+                                                        (currentUser?.role?.toLowerCase() ===
+                                                            "istri" &&
+                                                            !isOwnerSuami));
+
+                                                // Level suami bisa lihat kantong istri, tapi tidak bisa edit atau hapus kantong istri
+                                                const canManageWallet =
+                                                    isLoggedIn &&
+                                                    (currentUser?.role ===
+                                                        "Admin" ||
+                                                        (currentUser?.role ===
+                                                            "Suami" &&
+                                                            !isOwnerIstri) ||
+                                                        (currentUser?.role ===
+                                                            "Istri" &&
+                                                            !isOwnerSuami));
+
+                                                return (
+                                                    <div
+                                                        key={w.id}
+                                                        onClick={() => {
+                                                            setSelectedWalletId(
+                                                                w.id,
+                                                            );
+                                                            setDetailSearch("");
+                                                            setDetailCategoryFilter(
+                                                                "all",
+                                                            );
+                                                            setDetailTxPage(1);
+                                                        }}
+                                                        className="p-5 rounded-2xl border border-slate-150 bg-white hover:border-slate-300 shadow-sm hover:shadow-md transition-all relative overflow-hidden group w-full cursor-pointer flex flex-col justify-between min-h-[160px]"
+                                                    >
+                                                        <div
+                                                            className={`absolute top-0 left-0 right-0 h-1.5 opacity-90 ${w.color || "bg-blue-600"}`}
+                                                        ></div>
+                                                        {/* Background Faint Icon */}
+                                                        <div
+                                                            className={`absolute -right-4 -bottom-4 w-28 h-28 opacity-[0.07] pointer-events-none ${w.color ? w.color.replace("bg-", "text-") : "text-blue-600"}`}
+                                                        >
+                                                            {w.icon ===
+                                                                "Wallet" && (
+                                                                <Wallet className="w-full h-full" />
+                                                            )}
+                                                            {w.icon ===
+                                                                "CreditCard" && (
+                                                                <CreditCard className="w-full h-full" />
+                                                            )}
+                                                            {w.icon ===
+                                                                "Building" && (
+                                                                <Building className="w-full h-full" />
+                                                            )}
+                                                            {w.icon ===
+                                                                "Smartphone" && (
+                                                                <Smartphone className="w-full h-full" />
+                                                            )}
+                                                            {w.icon ===
+                                                                "Coins" && (
+                                                                <Coins className="w-full h-full" />
+                                                            )}
+                                                            {![
+                                                                "Wallet",
+                                                                "CreditCard",
+                                                                "Building",
+                                                                "Smartphone",
+                                                                "Coins",
+                                                            ].includes(
+                                                                w.icon,
+                                                            ) && (
+                                                                <Wallet className="w-full h-full" />
+                                                            )}
+                                                        </div>
+
+                                                        <div className="relative z-10 flex items-start justify-between mb-2">
+                                                            <div className="flex-1 pr-3">
+                                                                <h4 className="font-bold text-slate-900 leading-tight flex items-center flex-wrap gap-1.5">
+                                                                    {w.name}
+                                                                    {w.isUtama && (
+                                                                        <span className="px-1.5 py-0.5 text-[9px] font-bold bg-blue-100 text-blue-700 rounded-md border border-blue-200 uppercase tracking-wider scale-90 origin-left">
+                                                                            Utama
+                                                                        </span>
+                                                                    )}
+                                                                </h4>
+                                                                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                                        {w.type}
+                                                                    </span>
+                                                                    <span className="text-[10px] font-bold text-slate-400">
+                                                                        •{" "}
+                                                                        {
+                                                                            transactions.filter(
+                                                                                (
+                                                                                    t,
+                                                                                ) => {
+                                                                                    if (
+                                                                                        t.walletId !=
+                                                                                        w.id
+                                                                                    )
+                                                                                        return false;
+                                                                                    const td =
+                                                                                        new Date(
+                                                                                            t.date,
+                                                                                        );
+                                                                                    const m =
+                                                                                        td.getMonth() +
+                                                                                        1;
+                                                                                    return (
+                                                                                        m >=
+                                                                                            selectedMonth &&
+                                                                                        m <=
+                                                                                            selectedEndMonth &&
+                                                                                        td.getFullYear() ===
+                                                                                            selectedYear
+                                                                                    );
+                                                                                },
+                                                                            )
+                                                                                .length
+                                                                        }{" "}
+                                                                        Transaksi
+                                                                    </span>
+                                                                    {isOwnerSuami && (
+                                                                        <span className="px-1.5 py-0.2 text-[8px] font-black bg-blue-50 text-blue-600 rounded-md border border-blue-150 uppercase tracking-wider">
+                                                                            Suami
+                                                                        </span>
+                                                                    )}
+                                                                    {isOwnerIstri && (
+                                                                        <span className="px-1.5 py-0.2 text-[8px] font-black bg-pink-50 text-pink-600 rounded-md border border-pink-150 uppercase tracking-wider">
+                                                                            Istri
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            {canManageWallet && (
+                                                                <div className="flex items-center gap-1 shrink-0">
+                                                                    <button
+                                                                        onClick={(
+                                                                            e,
+                                                                        ) => {
+                                                                            e.stopPropagation();
+                                                                            setNewWallet(
+                                                                                {
+                                                                                    ...w,
+                                                                                    is_utama:
+                                                                                        !!w.isUtama,
+                                                                                },
+                                                                            );
+                                                                            setShowAddWalletModal(
+                                                                                true,
+                                                                            );
+                                                                        }}
+                                                                        className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+                                                                    >
+                                                                        <Edit className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                    {!w.isUtama && (
+                                                                        <button
+                                                                            onClick={(
+                                                                                e,
+                                                                            ) => {
+                                                                                e.stopPropagation();
+                                                                                if (
+                                                                                    window.confirm(
+                                                                                        "Yakin ingin menghapus kantong ini?",
+                                                                                    )
+                                                                                ) {
+                                                                                    handleDeleteWallet(
+                                                                                        w.id,
+                                                                                    );
+                                                                                }
+                                                                            }}
+                                                                            className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors"
+                                                                        >
+                                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="relative z-10 flex items-end justify-between mt-4">
+                                                            <div>
+                                                                <p className="text-xs text-slate-500 mb-0.5">
+                                                                    Total Saldo
+                                                                </p>
+                                                                <p className="text-lg font-black text-slate-900 tracking-tight">
+                                                                    {formatIDR(
+                                                                        w.balance,
+                                                                    )}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+
+                                        {/* Card Tambah Kantong Sejajar Outline Putus-Putus */}
+                                        {isLoggedIn && (
+                                            <button
+                                                onClick={() => {
+                                                    setNewWallet({
+                                                        id: null,
+                                                        name: "",
+                                                        balance: "",
+                                                        type: "Bank",
+                                                        color: "bg-blue-600",
+                                                        icon: "Wallet",
+                                                        is_utama: false,
+                                                    });
+                                                    setShowAddWalletModal(true);
+                                                }}
+                                                className="flex flex-col items-center justify-center p-5 rounded-2xl border-2 border-dashed border-slate-200 hover:border-blue-500 hover:bg-blue-50/10 text-slate-400 hover:text-blue-500 transition-all cursor-pointer min-h-[160px] w-full"
+                                            >
+                                                <Plus className="w-8 h-8 mb-2" />
+                                                <span className="text-xs font-bold">
+                                                    Tambah Kantong
+                                                </span>
+                                            </button>
+                                        )}
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    {/* DETAIL VIEW KANTONG */}
+                                    {(() => {
+                                        const selectedWallet = wallets.find(
+                                            (w) => w.id === selectedWalletId,
+                                        );
+                                        if (!selectedWallet) {
+                                            setSelectedWalletId(null);
+                                            return null;
+                                        }
+
+                                        const walletOwner = members.find(
+                                            (m) =>
+                                                m.id === selectedWallet.userId,
+                                        );
+                                        const ownerRole = walletOwner?.role;
+                                        const isOwnerIstri =
+                                            ownerRole?.toLowerCase() ===
+                                                "istri" ||
+                                            selectedWallet.name
+                                                .toLowerCase()
+                                                .includes("istri") ||
+                                            selectedWallet.name
+                                                .toLowerCase()
+                                                .includes("ibu");
+                                        const isOwnerSuami =
+                                            ownerRole?.toLowerCase() ===
+                                                "suami" ||
+                                            selectedWallet.name
+                                                .toLowerCase()
+                                                .includes("suami") ||
+                                            selectedWallet.name
+                                                .toLowerCase()
+                                                .includes("bapak") ||
+                                            selectedWallet.name
+                                                .toLowerCase()
+                                                .includes("ayah");
+
+                                        const canAction =
+                                            isLoggedIn &&
+                                            (currentUser?.role?.toLowerCase() ===
+                                                "admin" ||
+                                                (currentUser?.role?.toLowerCase() ===
+                                                    "suami" &&
+                                                    !isOwnerIstri) ||
+                                                (currentUser?.role?.toLowerCase() ===
+                                                    "istri" &&
+                                                    !isOwnerSuami));
+
+                                        const canManageWallet =
+                                            isLoggedIn &&
+                                            (currentUser?.role === "Admin" ||
+                                                (currentUser?.role ===
+                                                    "Suami" &&
+                                                    !isOwnerIstri) ||
+                                                (currentUser?.role ===
+                                                    "Istri" &&
+                                                    !isOwnerSuami));
+
+                                        // Filter transaksi kantong ini di periode bulan terpilih
+                                        const filteredTxs = transactions
+                                            .filter(
+                                                (t) =>
+                                                    t.walletId ==
+                                                    selectedWallet.id,
+                                            )
+                                            .filter((t) => {
+                                                const d = new Date(t.date);
+                                                const m = d.getMonth() + 1;
+                                                return (
+                                                    m >= selectedMonth &&
+                                                    m <= selectedEndMonth &&
+                                                    d.getFullYear() ===
+                                                        selectedYear
+                                                );
+                                            })
+                                            .filter((t) =>
+                                                detailSearch
+                                                    ? t.description
+                                                          .toLowerCase()
+                                                          .includes(
+                                                              detailSearch.toLowerCase(),
+                                                          )
+                                                    : true,
+                                            )
+                                            .filter((t) =>
+                                                detailCategoryFilter !== "all"
+                                                    ? t.categoryId ==
+                                                      detailCategoryFilter
+                                                    : true,
+                                            )
+                                            .sort(
+                                                (a, b) =>
+                                                    new Date(b.date) -
+                                                    new Date(a.date),
+                                            );
+
+                                        const detailTxPerPage = 10;
+                                        const totalDetailPages =
+                                            Math.ceil(
+                                                filteredTxs.length /
+                                                    detailTxPerPage,
+                                            ) || 1;
+                                        const currentDetailPg = Math.min(
+                                            detailTxPage,
+                                            totalDetailPages,
+                                        );
+                                        const paginatedTxs = filteredTxs.slice(
+                                            (currentDetailPg - 1) *
+                                                detailTxPerPage,
+                                            currentDetailPg * detailTxPerPage,
+                                        );
+
+                                        const groupedTxs = paginatedTxs.reduce(
+                                            (groups, t) => {
+                                                const date = t.date;
+                                                if (!groups[date])
+                                                    groups[date] = [];
+                                                groups[date].push(t);
+                                                return groups;
+                                            },
+                                            {},
+                                        );
+
+                                        return (
+                                            <div className="space-y-6">
+                                                {/* Header Navigasi */}
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <button
+                                                        onClick={() =>
+                                                            setSelectedWalletId(
+                                                                null,
+                                                            )
+                                                        }
+                                                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-sm"
+                                                    >
+                                                        <ArrowLeft className="w-4 h-4" />
+                                                        Kembali
+                                                    </button>
+                                                    {canManageWallet && (
+                                                        <div className="flex items-center gap-2">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setNewWallet(
+                                                                        {
+                                                                            ...selectedWallet,
+                                                                            is_utama:
+                                                                                !!selectedWallet.isUtama,
+                                                                        },
+                                                                    );
+                                                                    setShowAddWalletModal(
+                                                                        true,
+                                                                    );
+                                                                }}
+                                                                className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-150 rounded-xl transition-all"
+                                                                title="Edit Kantong"
+                                                            >
+                                                                <Edit className="w-4 h-4" />
+                                                            </button>
+                                                            {!selectedWallet.isUtama && (
+                                                                <button
+                                                                    onClick={() => {
+                                                                        if (
+                                                                            window.confirm(
+                                                                                "Yakin ingin menghapus kantong ini?",
+                                                                            )
+                                                                        ) {
+                                                                            handleDeleteWallet(
+                                                                                selectedWallet.id,
+                                                                            );
+                                                                            setSelectedWalletId(
+                                                                                null,
+                                                                            );
+                                                                        }
+                                                                    }}
+                                                                    className="p-2 text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-150 rounded-xl transition-all"
+                                                                    title="Hapus Kantong"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {/* Card Info Saldo Premium */}
+                                                <div className="p-6 md:p-8 rounded-3xl bg-slate-900 text-white relative overflow-hidden shadow-lg border border-slate-800">
+                                                    <div
+                                                        className={`absolute top-0 left-0 right-0 h-1.5 opacity-90 ${selectedWallet.color || "bg-blue-600"}`}
+                                                    ></div>
+                                                    <div className="absolute -right-6 -bottom-6 w-36 h-36 opacity-[0.06] pointer-events-none text-white">
+                                                        {selectedWallet.icon ===
+                                                            "Wallet" && (
+                                                            <Wallet className="w-full h-full" />
+                                                        )}
+                                                        {selectedWallet.icon ===
+                                                            "CreditCard" && (
+                                                            <CreditCard className="w-full h-full" />
+                                                        )}
+                                                        {selectedWallet.icon ===
+                                                            "Building" && (
+                                                            <Building className="w-full h-full" />
+                                                        )}
+                                                        {selectedWallet.icon ===
+                                                            "Smartphone" && (
+                                                            <Smartphone className="w-full h-full" />
+                                                        )}
+                                                        {selectedWallet.icon ===
+                                                            "Coins" && (
+                                                            <Coins className="w-full h-full" />
+                                                        )}
+                                                        {![
+                                                            "Wallet",
+                                                            "CreditCard",
+                                                            "Building",
+                                                            "Smartphone",
+                                                            "Coins",
+                                                        ].includes(
+                                                            selectedWallet.icon,
+                                                        ) && (
+                                                            <Wallet className="w-full h-full" />
+                                                        )}
                                                     </div>
 
-                                                    {/* 2. Kategori */}
-                                                    <div>
-                                                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
-                                                            Kategori
-                                                        </label>
-                                                        <div className="relative">
-                                                            <select
-                                                                value={
-                                                                    tx.categoryId
+                                                    <div className="relative z-10 space-y-4">
+                                                        <div>
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <span className="text-[9px] font-extrabold bg-white/10 text-white/95 border border-white/10 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                                                    {
+                                                                        selectedWallet.type
+                                                                    }
+                                                                </span>
+                                                                <span className="text-[9px] font-extrabold bg-slate-850 text-slate-300 border border-slate-700/60 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                                                    {
+                                                                        transactions.filter(
+                                                                            (
+                                                                                t,
+                                                                            ) => {
+                                                                                if (
+                                                                                    t.walletId !=
+                                                                                    selectedWallet.id
+                                                                                )
+                                                                                    return false;
+                                                                                const td =
+                                                                                    new Date(
+                                                                                        t.date,
+                                                                                    );
+                                                                                const m =
+                                                                                    td.getMonth() +
+                                                                                    1;
+                                                                                return (
+                                                                                    m >=
+                                                                                        selectedMonth &&
+                                                                                    m <=
+                                                                                        selectedEndMonth &&
+                                                                                    td.getFullYear() ===
+                                                                                        selectedYear
+                                                                                );
+                                                                            },
+                                                                        ).length
+                                                                    }{" "}
+                                                                    Transaksi
+                                                                </span>
+                                                                {selectedWallet.isUtama && (
+                                                                    <span className="text-[9px] font-extrabold bg-blue-500/25 text-blue-300 border border-blue-500/20 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                                                        Dompet
+                                                                        Utama
+                                                                    </span>
+                                                                )}
+                                                                {isOwnerSuami && (
+                                                                    <span className="text-[9px] font-extrabold bg-blue-500/20 text-blue-300 border border-blue-400/20 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                                                        Suami
+                                                                    </span>
+                                                                )}
+                                                                {isOwnerIstri && (
+                                                                    <span className="text-[9px] font-extrabold bg-pink-500/20 text-pink-300 border border-pink-400/20 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                                                        Istri
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <h2 className="text-xl md:text-2xl font-black tracking-tight mt-2">
+                                                                {
+                                                                    selectedWallet.name
                                                                 }
-                                                                onChange={(e) =>
-                                                                    handleUpdateBulkField(
-                                                                        idx,
-                                                                        "categoryId",
+                                                            </h2>
+                                                        </div>
+
+                                                        <div>
+                                                            <p className="text-[10px] text-slate-400 mb-0.5">
+                                                                Total Saldo
+                                                                Kantong
+                                                            </p>
+                                                            <p className="text-2xl md:text-3xl font-black text-white tracking-tight">
+                                                                {formatIDR(
+                                                                    selectedWallet.balance,
+                                                                )}
+                                                            </p>
+                                                        </div>
+
+                                                        {/* Action Buttons (Tambah Uang / Pindahkan Uang) */}
+                                                        {canAction && (
+                                                            <div className="flex flex-wrap gap-2.5 pt-3 border-t border-slate-800">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const userDompetUtama =
+                                                                            wallets.find(
+                                                                                (
+                                                                                    sw,
+                                                                                ) =>
+                                                                                    sw.userId ==
+                                                                                        currentUser?.id &&
+                                                                                    sw.isUtama,
+                                                                            );
+                                                                        setTopUpData(
+                                                                            {
+                                                                                walletId:
+                                                                                    selectedWallet.id,
+                                                                                sourceWalletId:
+                                                                                    userDompetUtama?.id ||
+                                                                                    "",
+                                                                                amount: "",
+                                                                            },
+                                                                        );
+                                                                        setShowTopUpModal(
+                                                                            true,
+                                                                        );
+                                                                    }}
+                                                                    className="px-3.5 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl flex items-center gap-1 shadow-sm transition-all"
+                                                                >
+                                                                    <Plus className="w-3.5 h-3.5" />
+                                                                    Tambah Uang
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setTransferData(
+                                                                            {
+                                                                                sourceWalletId:
+                                                                                    selectedWallet.id,
+                                                                                targetWalletId:
+                                                                                    "",
+                                                                                amount: "",
+                                                                            },
+                                                                        );
+                                                                        setShowTransferModal(
+                                                                            true,
+                                                                        );
+                                                                    }}
+                                                                    className="px-3.5 py-2 text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl flex items-center gap-1 shadow-sm transition-all"
+                                                                >
+                                                                    <RefreshCw className="w-3.5 h-3.5" />
+                                                                    Pindahkan
+                                                                    Uang
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Riwayat Transaksi */}
+                                                <div className="space-y-4 pt-2">
+                                                    <div>
+                                                        <h3 className="font-bold text-base text-slate-900">
+                                                            Riwayat Transaksi
+                                                            Kantong
+                                                        </h3>
+                                                        <p className="text-xs text-slate-500">
+                                                            Mutasi keuangan
+                                                            khusus kantong ini
+                                                            pada bulan terpilih
+                                                        </p>
+                                                    </div>
+
+                                                    {/* Filter Panel */}
+                                                    <div className="flex flex-col sm:flex-row gap-2">
+                                                        <div className="relative flex-1">
+                                                            <Search className="w-3.5 h-3.5 text-slate-455 absolute left-3 top-1/2 -translate-y-1/2" />
+                                                            <input
+                                                                type="text"
+                                                                value={
+                                                                    detailSearch
+                                                                }
+                                                                onChange={(
+                                                                    e,
+                                                                ) => {
+                                                                    setDetailSearch(
                                                                         e.target
                                                                             .value,
-                                                                    )
+                                                                    );
+                                                                    setDetailTxPage(
+                                                                        1,
+                                                                    );
+                                                                }}
+                                                                placeholder="Cari deskripsi transaksi..."
+                                                                className="w-full pl-8 pr-3 py-2 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white transition-all shadow-xs"
+                                                            />
+                                                        </div>
+                                                        <div className="w-full sm:w-44">
+                                                            <select
+                                                                value={
+                                                                    detailCategoryFilter
                                                                 }
-                                                                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
+                                                                onChange={(
+                                                                    e,
+                                                                ) => {
+                                                                    setDetailCategoryFilter(
+                                                                        e.target
+                                                                            .value,
+                                                                    );
+                                                                    setDetailTxPage(
+                                                                        1,
+                                                                    );
+                                                                }}
+                                                                className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white transition-all shadow-xs"
                                                             >
+                                                                <option value="all">
+                                                                    Semua
+                                                                    Kategori
+                                                                </option>
                                                                 {categories.map(
                                                                     (c) => (
                                                                         <option
@@ -2292,493 +3642,265 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                                         </div>
                                                     </div>
 
-                                                    {/* 3. Dompet */}
-                                                    <div>
-                                                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
-                                                            Dompet / Sumber Dana
-                                                        </label>
-                                                        <div className="relative">
-                                                            <select
-                                                                value={
-                                                                    tx.walletId
-                                                                }
-                                                                onChange={(e) =>
-                                                                    handleUpdateBulkField(
-                                                                        idx,
-                                                                        "walletId",
-                                                                        e.target
-                                                                            .value,
-                                                                    )
-                                                                }
-                                                                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
-                                                            >
-                                                                {wallets.map(
-                                                                    (w) => (
-                                                                        <option
+                                                    {/* List View */}
+                                                    <div className="space-y-4 pt-1">
+                                                        {filteredTxs.length ===
+                                                        0 ? (
+                                                            <div className="text-center py-10 border border-dashed border-slate-150 rounded-xl bg-white shadow-sm">
+                                                                <Wallet className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                                                                <p className="text-slate-500 font-bold text-xs">
+                                                                    Tidak ada
+                                                                    transaksi di
+                                                                    bulan ini.
+                                                                </p>
+                                                                <p className="text-slate-400 text-[10px] mt-0.5">
+                                                                    Ubah periode
+                                                                    bulan di
+                                                                    atas atau
+                                                                    sesuaikan
+                                                                    pencarian.
+                                                                </p>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                {Object.entries(
+                                                                    groupedTxs,
+                                                                ).map(
+                                                                    ([
+                                                                        date,
+                                                                        txs,
+                                                                    ]) => (
+                                                                        <div
                                                                             key={
-                                                                                w.id
+                                                                                date
                                                                             }
-                                                                            value={
-                                                                                w.id
-                                                                            }
+                                                                            className="space-y-2"
                                                                         >
-                                                                            {
-                                                                                w.name
-                                                                            }
-                                                                        </option>
+                                                                            <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider border-b border-slate-200 pb-1.5 mt-3">
+                                                                                {new Date(
+                                                                                    date,
+                                                                                ).toLocaleDateString(
+                                                                                    "id-ID",
+                                                                                    {
+                                                                                        weekday:
+                                                                                            "long",
+                                                                                        day: "numeric",
+                                                                                        month: "long",
+                                                                                        year: "numeric",
+                                                                                    },
+                                                                                )}
+                                                                            </h4>
+                                                                            <div className="space-y-1.5">
+                                                                                {txs.map(
+                                                                                    (
+                                                                                        t,
+                                                                                    ) => {
+                                                                                        const cat =
+                                                                                            categories.find(
+                                                                                                (
+                                                                                                    c,
+                                                                                                ) =>
+                                                                                                    c.id ==
+                                                                                                    t.categoryId,
+                                                                                            );
+                                                                                        const isIncome =
+                                                                                            t.type ===
+                                                                                            "income";
+                                                                                        const canManageTx =
+                                                                                            isLoggedIn &&
+                                                                                            (currentUser?.role ===
+                                                                                                "Admin" ||
+                                                                                                currentUser?.id ==
+                                                                                                    t.memberId);
+                                                                                        return (
+                                                                                            <div
+                                                                                                key={
+                                                                                                    t.id
+                                                                                                }
+                                                                                                className="bg-white p-4 rounded-xl border border-slate-100 hover:border-blue-400 shadow-sm transition-all flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-4"
+                                                                                            >
+                                                                                                <div className="flex items-center gap-3">
+                                                                                                    {(() => {
+                                                                                                        const TxIcon =
+                                                                                                            isIncome
+                                                                                                                ? TrendingUp
+                                                                                                                : cat?.icon &&
+                                                                                                                    ICON_MAP[
+                                                                                                                        cat
+                                                                                                                            .icon
+                                                                                                                    ]
+                                                                                                                  ? ICON_MAP[
+                                                                                                                        cat
+                                                                                                                            .icon
+                                                                                                                    ]
+                                                                                                                  : Tag;
+                                                                                                        return (
+                                                                                                            <div
+                                                                                                                className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${isIncome ? "bg-emerald-500 shadow-sm shadow-emerald-100" : cat?.color || "bg-slate-400"} shrink-0`}
+                                                                                                            >
+                                                                                                                <TxIcon className="w-5 h-5 stroke-[2.5]" />
+                                                                                                            </div>
+                                                                                                        );
+                                                                                                    })()}
+                                                                                                    <div>
+                                                                                                        <h5 className="font-bold text-xs text-slate-800 leading-tight">
+                                                                                                            {
+                                                                                                                t.description
+                                                                                                            }
+                                                                                                        </h5>
+                                                                                                        <p className="text-[9px] text-slate-400 mt-0.5 font-semibold">
+                                                                                                            {isIncome
+                                                                                                                ? "Pemasukan"
+                                                                                                                : cat?.name ||
+                                                                                                                  "Tanpa Kategori"}
+                                                                                                        </p>
+                                                                                                    </div>
+                                                                                                </div>
+                                                                                                <div className="flex items-center justify-between sm:justify-end gap-3 border-t border-slate-100/30 pt-1.5 sm:pt-0 sm:border-0">
+                                                                                                    <span
+                                                                                                        className={`font-extrabold text-xs ${isIncome ? "text-emerald-600" : "text-rose-600"}`}
+                                                                                                    >
+                                                                                                        {isIncome
+                                                                                                            ? "+"
+                                                                                                            : "-"}
+                                                                                                        {formatIDR(
+                                                                                                            t.amount,
+                                                                                                        )}
+                                                                                                    </span>
+                                                                                                    {canManageTx && (
+                                                                                                        <div className="flex items-center gap-1">
+                                                                                                            <button
+                                                                                                                onClick={() =>
+                                                                                                                    handleOpenEdit(
+                                                                                                                        t,
+                                                                                                                    )
+                                                                                                                }
+                                                                                                                className="p-1 text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                                                                                                                title="Ubah Transaksi"
+                                                                                                            >
+                                                                                                                <Edit className="w-3.5 h-3.5" />
+                                                                                                            </button>
+                                                                                                            <button
+                                                                                                                onClick={() =>
+                                                                                                                    handleDeleteTransaction(
+                                                                                                                        t.id,
+                                                                                                                        t.type,
+                                                                                                                        t.amount,
+                                                                                                                        t.walletId,
+                                                                                                                    )
+                                                                                                                }
+                                                                                                                className="p-1 text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                                                                                                                title="Hapus Transaksi"
+                                                                                                            >
+                                                                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                                                                            </button>
+                                                                                                        </div>
+                                                                                                    )}
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        );
+                                                                                    },
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
                                                                     ),
                                                                 )}
-                                                            </select>
-                                                        </div>
-                                                    </div>
 
-                                                    {/* 4. Tanggal (Pilih bulan & tahun pop-up native) */}
-                                                    <div className="md:col-span-2">
-                                                        <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1.5">
-                                                            Tanggal
-                                                        </label>
-                                                        <input
-                                                            type="date"
-                                                            value={tx.date}
-                                                            onChange={(e) =>
-                                                                handleUpdateBulkField(
-                                                                    idx,
-                                                                    "date",
-                                                                    e.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50/50 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all cursor-pointer"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        ))}
-
-                                        {/* Button Tambah Baris (Outline putus-putus) */}
-                                        <button
-                                            type="button"
-                                            onClick={handleAddBulkRow}
-                                            className="w-full py-4 rounded-2xl border-2 border-dashed border-blue-300 text-blue-600 font-bold text-sm flex items-center justify-center space-x-2 hover:bg-blue-50 hover:border-blue-400 transition-all"
-                                        >
-                                            <Plus className="w-5 h-5" />
-                                            <span>Tambah Baris</span>
-                                        </button>
-
-                                        {/* Action Buttons: Batal & Simpan */}
-                                        <div className="flex items-center justify-end space-x-4 pt-6 pb-32 md:pb-6">
-                                            <button
-                                                onClick={() => {
-                                                    setActiveTab("dompet");
-                                                    setIsAddingTx(false);
-                                                    setBulkTransactions([]);
-                                                }}
-                                                className="px-6 py-3 rounded-xl border border-slate-200 text-sm font-bold text-slate-600 hover:bg-slate-100 hover:text-slate-800 transition-all"
-                                            >
-                                                Batal
-                                            </button>
-                                            <button
-                                                type="submit"
-                                                className="px-8 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all flex items-center space-x-2"
-                                            >
-                                                <Check className="w-4 h-4" />
-                                                <span>Simpan</span>
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-
-                        </div>
-                    )}
-
-                    {/* TAB: BUDGETING */}
-                    {activeTab === "budgeting" && (
-                        <div className="space-y-6 animate-fadeIn">
-                            {/* (Tab Toggle Dihilangkan) */}
-
-                            <div className="flex justify-end mb-4">
-                                <button
-                                    onClick={() => {
-                                        setActiveTab("pencatatan");
-                                        handleStartAddTransaction();
-                                    }}
-                                    className="px-4 py-2.5 bg-blue-600 text-white rounded-full font-bold hover:bg-blue-700 transition-all text-sm flex items-center justify-center shadow-md shadow-blue-200 shrink-0"
-                                >
-                                    <Plus className="w-4 h-4" />
-                                    <span className="ml-1.5">
-                                        Catat Pengeluaran
-                                    </span>
-                                </button>
-                            </div>
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {(() => {
-                                    let txs = transactions.filter(
-                                        (t) => t.type === "expense",
-                                    );
-                                    if (budgetStartDate)
-                                        txs = txs.filter(
-                                            (t) => t.date >= budgetStartDate,
-                                        );
-                                    if (budgetEndDate)
-                                        txs = txs.filter(
-                                            (t) => t.date <= budgetEndDate,
-                                        );
-
-                                    const stats = categories
-                                        .map((cat) => {
-                                            const spent = txs
-                                                .filter(
-                                                    (t) =>
-                                                        t.categoryId === cat.id,
-                                                )
-                                                .reduce(
-                                                    (sum, t) => sum + t.amount,
-                                                    0,
-                                                );
-                                            const percentage =
-                                                cat.budget > 0
-                                                    ? Math.min(
-                                                          (spent / cat.budget) *
-                                                              100,
-                                                          100,
-                                                      )
-                                                    : 0;
-                                            return {
-                                                ...cat,
-                                                spent,
-                                                percentage,
-                                            };
-                                        })
-                                        .sort((a, b) => b.spent - a.spent);
-
-                                    return stats.map((cat) => {
-                                        const IconComponent =
-                                            cat.icon && ICON_MAP[cat.icon]
-                                                ? ICON_MAP[cat.icon]
-                                                : Grid;
-
-                                        const isOverBudget =
-                                            cat.spent > cat.budget;
-                                        const isWarning =
-                                            !isOverBudget &&
-                                            cat.percentage > 80;
-
-                                        let barColor = "bg-blue-500";
-                                        if (isOverBudget)
-                                            barColor = "bg-rose-500";
-                                        else if (isWarning)
-                                            barColor = "bg-amber-500";
-                                        else if (cat.color)
-                                            barColor = cat.color;
-
-                                        const borderColor = cat.color
-                                            ? cat.color.replace(
-                                                  "bg-",
-                                                  "border-",
-                                              )
-                                            : "border-slate-200";
-
-                                        return (
-                                            <div
-                                                key={cat.id}
-                                                className={`p-5 rounded-2xl border-2 ${borderColor} bg-white shadow-sm hover:shadow-md transition-all`}
-                                            >
-                                                <div className="flex items-center justify-between mb-4">
-                                                    <div className="flex items-center gap-3">
-                                                        <div
-                                                            className={`w-9 h-9 rounded-xl flex items-center justify-center ${cat.color ? cat.color.replace("-500", "-100") : "bg-slate-100"}`}
-                                                        >
-                                                            <IconComponent
-                                                                className={`w-4 h-4 ${cat.color ? cat.color.replace("bg-", "text-").replace("-500", "-600") : "text-slate-500"}`}
-                                                            />
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="text-sm font-bold text-slate-800">
-                                                                {cat.name}
-                                                            </h4>
-                                                            <p className="text-[10px] font-semibold text-slate-400">
-                                                                Plafon:{" "}
-                                                                {formatIDR(
-                                                                    cat.budget,
-                                                                )}
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-right flex flex-col items-end">
-                                                        <span
-                                                            className={`text-sm font-black ${isOverBudget ? "text-rose-600" : "text-slate-800"}`}
-                                                        >
-                                                            {formatIDR(
-                                                                cat.spent,
-                                                            )}
-                                                        </span>
-                                                        <span className="text-[10px] font-bold text-slate-400 mt-0.5">
-                                                            Terpakai
-                                                        </span>
-                                                    </div>
-                                                </div>
-
-                                                <div className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                                                    <div
-                                                        className={`h-full rounded-full ${barColor} transition-all duration-700`}
-                                                        style={{
-                                                            width: `${Math.max(cat.percentage, 2)}%`,
-                                                        }}
-                                                    />
-                                                </div>
-
-                                                <div className="flex justify-between items-center mt-2.5">
-                                                    <span
-                                                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${isOverBudget ? "bg-rose-100 text-rose-600" : isWarning ? "bg-amber-100 text-amber-600" : "bg-slate-200 text-slate-600"}`}
-                                                    >
-                                                        {isOverBudget
-                                                            ? "Over budget!"
-                                                            : isWarning
-                                                              ? "Hampir habis"
-                                                              : "Aman"}
-                                                    </span>
-                                                    <span
-                                                        className={`text-xs font-bold ${isOverBudget ? "text-rose-600" : "text-slate-600"}`}
-                                                    >
-                                                        {cat.percentage.toFixed(
-                                                            0,
-                                                        )}
-                                                        %
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        );
-                                    });
-                                })()}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* TAB 4: DOMPET & AKUN */}
-                    {activeTab === "dompet" && (
-                        <div className="space-y-6 animate-fadeIn">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                <div>
-                                    <h3 className="font-bold text-lg text-slate-900">Kantong Keuangan</h3>
-                                    <p className="text-xs text-slate-500">Kelola rekening, e-wallet, dan uang tunai Anda</p>
-                                </div>
-                                {(hasPermission("kelola_dompet") || currentUser?.role === "Suami" || currentUser?.role === "Istri") && (
-                                     <button
-                                         onClick={() => {
-                                             setNewWallet({ id: null, name: "", balance: "", type: "Bank", color: "bg-blue-600", icon: "Wallet" });
-                                             setShowAddWalletModal(true);
-                                         }}
-                                         className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-md shadow-blue-100"
-                                     >
-                                         <Plus className="w-4 h-4" />
-                                         Tambah Kantong
-                                     </button>
-                                 )}
-                            </div>
-
-                            {/* List Kantong */}
-                            <div className="flex sm:grid overflow-x-auto sm:overflow-visible pb-4 sm:pb-0 gap-4 snap-x snap-mandatory sm:grid-cols-2 md:grid-cols-3">
-                                {wallets.map((w) => {
-                                    const walletOwner = members.find(m => m.id === w.userId);
-                                    const isOwnerIstri = walletOwner?.role?.toLowerCase() === 'istri' || w.name.toLowerCase().includes('istri') || w.name.toLowerCase().includes('ibu');
-                                    const isOwnerSuami = walletOwner?.role?.toLowerCase() === 'suami' || w.name.toLowerCase().includes('suami') || w.name.toLowerCase().includes('bapak') || w.name.toLowerCase().includes('ayah');
-
-                                    const canTopUp = hasPermission("topup_dompet") && (
-                                        currentUser?.role?.toLowerCase() === 'admin' ||
-                                        (currentUser?.role?.toLowerCase() === 'suami' && !isOwnerIstri) ||
-                                        (currentUser?.role?.toLowerCase() === 'istri' && !isOwnerSuami)
-                                    );
-
-                                    const canManageWallet = hasPermission("kelola_dompet") || (w.userId === currentUser?.id && (currentUser?.role === 'Suami' || currentUser?.role === 'Istri'));
-
-                                    return (
-                                        <div key={w.id} className="p-5 rounded-2xl border border-slate-150 bg-white hover:border-slate-300 shadow-sm hover:shadow-md transition-all relative overflow-hidden group shrink-0 w-[82vw] sm:w-auto snap-center">
-                                            <div className={`absolute top-0 left-0 right-0 h-1 opacity-80 ${w.color || "bg-blue-600"}`}></div>
-                                            <div className={`absolute top-0 right-0 w-24 h-24 rounded-bl-full opacity-10 ${w.color || "bg-blue-600"}`}></div>
-                                            <div className="flex items-start justify-between mb-2 relative z-10">
-                                                <div className="flex items-center gap-3">
-                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shadow-sm ${w.color || "bg-blue-600"}`}>
-                                                        {w.icon === 'Wallet' && <Wallet className="w-5 h-5" />}
-                                                        {w.icon === 'CreditCard' && <CreditCard className="w-5 h-5" />}
-                                                        {w.icon === 'Building' && <Building className="w-5 h-5" />}
-                                                        {w.icon === 'Smartphone' && <Smartphone className="w-5 h-5" />}
-                                                        {w.icon === 'Coins' && <Coins className="w-5 h-5" />}
-                                                        {!['Wallet','CreditCard','Building','Smartphone','Coins'].includes(w.icon) && <Wallet className="w-5 h-5" />}
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="font-bold text-slate-900 leading-tight">{w.name}</h4>
-                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{w.type}</span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    {canManageWallet && (
-                                                        <>
-                                                            <button onClick={() => { setNewWallet(w); setShowAddWalletModal(true); }} className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"><Edit className="w-3.5 h-3.5" /></button>
-                                                            <button onClick={() => handleDeleteWallet(w.id)} className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg"><Trash2 className="w-3.5 h-3.5" /></button>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            </div>
-                                            <div className="relative z-10 flex items-end justify-between mt-4">
-                                                <div>
-                                                    <p className="text-xs text-slate-500 mb-1">Total Saldo</p>
-                                                    <p className="text-xl font-black text-slate-900 tracking-tight">{formatIDR(w.balance)}</p>
-                                                </div>
-                                                {canTopUp && (
-                                                    <button 
-                                                        onClick={() => {
-                                                            setTopUpData({ walletId: w.id, amount: '' });
-                                                            setShowTopUpModal(true);
-                                                        }} 
-                                                        className="px-3 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-100 hover:bg-emerald-200 rounded-lg flex items-center gap-1 transition-colors animate-pulseHover"
-                                                    >
-                                                        <Plus className="w-3 h-3" /> Top Up
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )
-                                })}
-                            </div>
-
-                            {/* Transaksi Section */}
-                            <div className="mt-8 border-t border-slate-100 pt-6">
-                                <h3 className="font-bold text-lg text-slate-900 mb-4">Riwayat Transaksi</h3>
-                                <div className="flex flex-col sm:flex-row gap-3 mb-6">
-                                    <div className="relative flex-1">
-                                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                                        <input type="text" value={walletSearch} onChange={(e) => setWalletSearch(e.target.value)} placeholder="Cari deskripsi transaksi..." className="w-full pl-9 pr-4 py-2 text-sm rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white shadow-sm" />
-                                    </div>
-                                    <div className="w-full sm:w-48">
-                                        <select value={walletCategoryFilter} onChange={(e) => setWalletCategoryFilter(e.target.value)} className="w-full px-3 py-2 text-sm rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white shadow-sm">
-                                            <option value="all">Semua Kategori</option>
-                                            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                        </select>
-                                    </div>
-                                </div>
-
-<div className="space-y-6">
-                                    {(() => {
-                                        const walletTxPerPage = 15;
-                                        const filteredWalletTxs = transactions
-                                            .filter(t => {
-                                                const d = new Date(t.date);
-                                                return d.getMonth() + 1 === selectedMonth && d.getFullYear() === selectedYear;
-                                            })
-                                            .filter(t => (walletSearch ? t.description.toLowerCase().includes(walletSearch.toLowerCase()) : true))
-                                            .filter(t => (walletCategoryFilter !== "all" ? t.categoryId == walletCategoryFilter : true))
-                                            .sort((a, b) => new Date(b.date) - new Date(a.date));
-
-                                        const totalWalletPages = Math.ceil(filteredWalletTxs.length / walletTxPerPage) || 1;
-                                        // Pastikan current page tidak melebihi total
-                                        const currentPg = Math.min(walletTxPage, totalWalletPages);
-                                        const paginatedWalletTxs = filteredWalletTxs.slice((currentPg - 1) * walletTxPerPage, currentPg * walletTxPerPage);
-                                        
-                                        if (filteredWalletTxs.length === 0) {
-                                            return (
-                                                <div className="text-center py-10 bg-white rounded-2xl border border-dashed border-slate-200">
-                                                    <Wallet className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                                                    <p className="text-slate-500 font-bold">Tidak ada transaksi yang cocok di bulan ini.</p>
-                                                </div>
-                                            );
-                                        }
-
-                                        const grouped = paginatedWalletTxs.reduce((groups, t) => {
-                                            const date = t.date;
-                                            if (!groups[date]) groups[date] = [];
-                                            groups[date].push(t);
-                                            return groups;
-                                        }, {});
-
-                                        return (
-                                            <>
-                                                {Object.entries(grouped).map(([date, txs]) => (
-                                                    <div key={date}>
-                                                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{new Date(date).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</h4>
-                                                        <div className="space-y-2">
-                                                            {txs.map(t => {
-                                                                const cat = categories.find(c => c.id == t.categoryId);
-                                                                const wal = wallets.find(w => w.id == t.walletId);
-                                                                const isIncome = t.type === 'income';
-                                                                return (
-                                                                    <div key={t.id} className="bg-white p-4 rounded-2xl border border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:border-blue-200 transition-colors group">
-                                                                        <div className="flex items-center gap-3">
-                                                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${isIncome ? 'bg-emerald-500' : (cat?.color || 'bg-slate-400')} shrink-0`}>
-                                                                                <div className="text-xs font-bold">{isIncome ? '+' : (cat?.name?.charAt(0) || '?')}</div>
-                                                                            </div>
-                                                                            <div>
-                                                                                <h5 className="font-bold text-sm text-slate-900">{t.description}</h5>
-                                                                                <p className="text-[10px] font-bold text-slate-500">{isIncome ? 'Pemasukan' : (cat?.name || 'Tanpa Kategori')} • {wal?.name || 'Tanpa Dompet'}</p>
-                                                                            </div>
+                                                                {/* Pagination */}
+                                                                {totalDetailPages >
+                                                                    1 && (
+                                                                    <div className="flex items-center justify-center pt-3 gap-1">
+                                                                        <button
+                                                                            onClick={() =>
+                                                                                setDetailTxPage(
+                                                                                    (
+                                                                                        p,
+                                                                                    ) =>
+                                                                                        Math.max(
+                                                                                            1,
+                                                                                            p -
+                                                                                                1,
+                                                                                        ),
+                                                                                )
+                                                                            }
+                                                                            disabled={
+                                                                                currentDetailPg ===
+                                                                                1
+                                                                            }
+                                                                            className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 shadow-xs"
+                                                                        >
+                                                                            <ChevronLeft className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                        <div className="flex gap-1">
+                                                                            {Array.from(
+                                                                                {
+                                                                                    length: totalDetailPages,
+                                                                                },
+                                                                                (
+                                                                                    _,
+                                                                                    i,
+                                                                                ) =>
+                                                                                    i +
+                                                                                    1,
+                                                                            ).map(
+                                                                                (
+                                                                                    pageNum,
+                                                                                ) => (
+                                                                                    <button
+                                                                                        key={
+                                                                                            pageNum
+                                                                                        }
+                                                                                        onClick={() =>
+                                                                                            setDetailTxPage(
+                                                                                                pageNum,
+                                                                                            )
+                                                                                        }
+                                                                                        className={`w-7 h-7 rounded-lg text-[10px] font-bold transition-all ${
+                                                                                            currentDetailPg ===
+                                                                                            pageNum
+                                                                                                ? "bg-blue-600 text-white shadow-xs"
+                                                                                                : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
+                                                                                        }`}
+                                                                                    >
+                                                                                        {
+                                                                                            pageNum
+                                                                                        }
+                                                                                    </button>
+                                                                                ),
+                                                                            )}
                                                                         </div>
-                                                                        <div className="flex items-center justify-between sm:justify-end gap-4 border-t border-slate-50 pt-2 sm:pt-0 sm:border-0">
-                                                                            <div className={`font-bold ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                                                {t.type === 'income' ? '+' : '-'}{formatIDR(t.amount)}
-                                                                            </div>
-                                                                            <div className="flex items-center gap-1.5">
-                                                                                <button
-                                                                                    onClick={() => handleOpenEdit(t)}
-                                                                                    className="p-1.5 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg"
-                                                                                    title="Ubah Transaksi"
-                                                                                >
-                                                                                    <Edit className="w-3.5 h-3.5" />
-                                                                                </button>
-                                                                                <button
-                                                                                    onClick={() => handleDeleteTransaction(t.id, t.type, t.amount, t.walletId)}
-                                                                                    className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg"
-                                                                                    title="Hapus Transaksi"
-                                                                                >
-                                                                                    <Trash2 className="w-3.5 h-3.5" />
-                                                                                </button>
-                                                                            </div>
-                                                                        </div>
+                                                                        <button
+                                                                            onClick={() =>
+                                                                                setDetailTxPage(
+                                                                                    (
+                                                                                        p,
+                                                                                    ) =>
+                                                                                        Math.min(
+                                                                                            totalDetailPages,
+                                                                                            p +
+                                                                                                1,
+                                                                                        ),
+                                                                                )
+                                                                            }
+                                                                            disabled={
+                                                                                currentDetailPg ===
+                                                                                totalDetailPages
+                                                                            }
+                                                                            className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 shadow-xs"
+                                                                        >
+                                                                            <ChevronRightIcon className="w-3.5 h-3.5" />
+                                                                        </button>
                                                                     </div>
-                                                                )
-                                                            })}
-                                                        </div>
+                                                                )}
+                                                            </>
+                                                        )}
                                                     </div>
-                                                ))}
-
-                                                {/* Pagination Controls */}
-                                                {totalWalletPages > 1 && (
-                                                    <div className="flex items-center justify-center pt-6 gap-2">
-                                                        <button
-                                                            onClick={() => setWalletTxPage(p => Math.max(1, p - 1))}
-                                                            disabled={currentPg === 1}
-                                                            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 shadow-sm"
-                                                        >
-                                                            <ChevronLeft className="w-4 h-4" />
-                                                        </button>
-                                                        <div className="flex gap-1.5">
-                                                            {Array.from({ length: totalWalletPages }, (_, i) => i + 1).map(pageNum => (
-                                                                <button
-                                                                    key={pageNum}
-                                                                    onClick={() => setWalletTxPage(pageNum)}
-                                                                    className={`w-9 h-9 rounded-xl text-xs font-bold transition-all ${
-                                                                        currentPg === pageNum
-                                                                            ? "bg-blue-600 text-white shadow-md shadow-blue-200"
-                                                                            : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-                                                                    }`}
-                                                                >
-                                                                    {pageNum}
-                                                                </button>
-                                                            ))}
-                                                        </div>
-                                                        <button
-                                                            onClick={() => setWalletTxPage(p => Math.min(totalWalletPages, p + 1))}
-                                                            disabled={currentPg === totalWalletPages}
-                                                            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-40 shadow-sm"
-                                                        >
-                                                            <ChevronRightIcon className="w-4 h-4" />
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </>
+                                                </div>
+                                            </div>
                                         );
                                     })()}
-                                </div>
-                            </div>
+                                </>
+                            )}
                         </div>
                     )}
 
@@ -2794,9 +3916,15 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                         <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center backdrop-blur-md">
                                             <Trash2 className="w-5 h-5 text-rose-400" />
                                         </div>
-                                        <h2 className="text-xl md:text-2xl font-black tracking-tight">Kotak Sampah</h2>
+                                        <h2 className="text-xl md:text-2xl font-black tracking-tight">
+                                            Kotak Sampah
+                                        </h2>
                                     </div>
-                                    <p className="text-xs md:text-sm text-slate-300 font-medium">Pulihkan data yang tidak sengaja terhapus atau bersihkan data secara permanen.</p>
+                                    <p className="text-xs md:text-sm text-slate-300 font-medium">
+                                        Pulihkan data yang tidak sengaja
+                                        terhapus atau bersihkan data secara
+                                        permanen.
+                                    </p>
                                 </div>
                             </div>
 
@@ -2804,64 +3932,123 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                             <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm">
                                 <div className="flex gap-2 border-b border-slate-100 pb-4 mb-6 overflow-x-auto">
                                     {[
-                                        { id: 'tx', label: 'Transaksi', count: trashTransactions.length },
-                                        { id: 'cat', label: 'Kategori', count: trashCategories.length },
-                                        { id: 'wallet', label: 'Kantong', count: trashWallets.length }
-                                    ].map(subtab => (
+                                        {
+                                            id: "tx",
+                                            label: "Transaksi",
+                                            count: trashTransactions.length,
+                                        },
+                                        {
+                                            id: "cat",
+                                            label: "Kategori",
+                                            count: trashCategories.length,
+                                        },
+                                        {
+                                            id: "wallet",
+                                            label: "Kantong",
+                                            count: trashWallets.length,
+                                        },
+                                    ].map((subtab) => (
                                         <button
                                             key={subtab.id}
-                                            onClick={() => setTrashSubTab(subtab.id)}
+                                            onClick={() =>
+                                                setTrashSubTab(subtab.id)
+                                            }
                                             className={`px-4 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-2 ${
                                                 trashSubTab === subtab.id
-                                                    ? 'bg-blue-600 text-white shadow-md shadow-blue-100'
-                                                    : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                                                    ? "bg-blue-600 text-white shadow-md shadow-blue-100"
+                                                    : "bg-slate-50 text-slate-600 hover:bg-slate-100"
                                             }`}
                                         >
                                             {subtab.label}
-                                            <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${
-                                                trashSubTab === subtab.id ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                                            }`}>{subtab.count}</span>
+                                            <span
+                                                className={`px-1.5 py-0.5 rounded-md text-[10px] ${
+                                                    trashSubTab === subtab.id
+                                                        ? "bg-white/20 text-white"
+                                                        : "bg-slate-200 text-slate-700"
+                                                }`}
+                                            >
+                                                {subtab.count}
+                                            </span>
                                         </button>
                                     ))}
                                 </div>
 
                                 {/* Trash SubTab Content */}
                                 <div className="space-y-4">
-                                    {trashSubTab === 'tx' && (
+                                    {trashSubTab === "tx" && (
                                         <div className="space-y-3">
                                             {trashTransactions.length === 0 ? (
                                                 <div className="text-center py-12 border border-dashed border-slate-150 rounded-2xl">
                                                     <Trash2 className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                                                    <p className="text-slate-500 font-bold text-sm">Tidak ada transaksi di kotak sampah.</p>
+                                                    <p className="text-slate-500 font-bold text-sm">
+                                                        Tidak ada transaksi di
+                                                        kotak sampah.
+                                                    </p>
                                                 </div>
                                             ) : (
-                                                trashTransactions.map(tx => (
-                                                    <div key={tx.id} className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 hover:border-slate-200 transition-colors">
+                                                trashTransactions.map((tx) => (
+                                                    <div
+                                                        key={tx.id}
+                                                        className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 hover:border-slate-200 transition-colors"
+                                                    >
                                                         <div className="flex items-center gap-3">
-                                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 ${tx.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}`}>
-                                                                <span className="text-xs font-bold">{tx.type === 'income' ? '+' : '-'}</span>
+                                                            <div
+                                                                className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 ${tx.type === "income" ? "bg-emerald-500" : "bg-rose-500"}`}
+                                                            >
+                                                                <span className="text-xs font-bold">
+                                                                    {tx.type ===
+                                                                    "income"
+                                                                        ? "+"
+                                                                        : "-"}
+                                                                </span>
                                                             </div>
                                                             <div>
-                                                                <h5 className="font-bold text-sm text-slate-800">{tx.description}</h5>
+                                                                <h5 className="font-bold text-sm text-slate-800">
+                                                                    {
+                                                                        tx.description
+                                                                    }
+                                                                </h5>
                                                                 <p className="text-[10px] font-bold text-slate-500">
-                                                                    {tx.date} • {tx.type === 'income' ? 'Pemasukan' : 'Pengeluaran'}
+                                                                    {tx.date} •{" "}
+                                                                    {tx.type ===
+                                                                    "income"
+                                                                        ? "Pemasukan"
+                                                                        : "Pengeluaran"}
                                                                 </p>
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center justify-between sm:justify-end gap-4 border-t border-slate-100 sm:border-0 pt-2 sm:pt-0">
-                                                            <span className={`font-black text-sm ${tx.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                                {tx.type === 'income' ? '+' : '-'}{formatIDR(tx.amount)}
+                                                            <span
+                                                                className={`font-black text-sm ${tx.type === "income" ? "text-emerald-600" : "text-rose-600"}`}
+                                                            >
+                                                                {tx.type ===
+                                                                "income"
+                                                                    ? "+"
+                                                                    : "-"}
+                                                                {formatIDR(
+                                                                    tx.amount,
+                                                                )}
                                                             </span>
                                                             <div className="flex gap-1.5">
                                                                 <button
-                                                                    onClick={() => handleRestoreItem('transaction', tx.id)}
+                                                                    onClick={() =>
+                                                                        handleRestoreItem(
+                                                                            "transaction",
+                                                                            tx.id,
+                                                                        )
+                                                                    }
                                                                     className="px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
                                                                     title="Pulihkan"
                                                                 >
                                                                     Pulihkan
                                                                 </button>
                                                                 <button
-                                                                    onClick={() => handleForceDeleteItem('transaction', tx.id)}
+                                                                    onClick={() =>
+                                                                        handleForceDeleteItem(
+                                                                            "transaction",
+                                                                            tx.id,
+                                                                        )
+                                                                    }
                                                                     className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors"
                                                                     title="Hapus Permanen"
                                                                 >
@@ -2875,34 +4062,63 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                         </div>
                                     )}
 
-                                    {trashSubTab === 'cat' && (
+                                    {trashSubTab === "cat" && (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                                             {trashCategories.length === 0 ? (
                                                 <div className="col-span-full text-center py-12 border border-dashed border-slate-150 rounded-2xl">
                                                     <Tag className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                                                    <p className="text-slate-500 font-bold text-sm">Tidak ada kategori di kotak sampah.</p>
+                                                    <p className="text-slate-500 font-bold text-sm">
+                                                        Tidak ada kategori di
+                                                        kotak sampah.
+                                                    </p>
                                                 </div>
                                             ) : (
-                                                trashCategories.map(cat => (
-                                                    <div key={cat.id} className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 flex items-center justify-between gap-4">
+                                                trashCategories.map((cat) => (
+                                                    <div
+                                                        key={cat.id}
+                                                        className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 flex items-center justify-between gap-4"
+                                                    >
                                                         <div className="flex items-center gap-3">
-                                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${cat.color || 'bg-slate-400'}`}>
-                                                                <span className="text-xs font-bold">{cat.name.charAt(0)}</span>
+                                                            <div
+                                                                className={`w-10 h-10 rounded-xl flex items-center justify-center text-white ${cat.color || "bg-slate-400"}`}
+                                                            >
+                                                                <span className="text-xs font-bold">
+                                                                    {cat.name.charAt(
+                                                                        0,
+                                                                    )}
+                                                                </span>
                                                             </div>
                                                             <div>
-                                                                <h5 className="font-bold text-sm text-slate-800">{cat.name}</h5>
-                                                                <p className="text-[10px] font-bold text-slate-500">Anggaran: {formatIDR(cat.budget)}</p>
+                                                                <h5 className="font-bold text-sm text-slate-800">
+                                                                    {cat.name}
+                                                                </h5>
+                                                                <p className="text-[10px] font-bold text-slate-500">
+                                                                    Anggaran:{" "}
+                                                                    {formatIDR(
+                                                                        cat.budget,
+                                                                    )}
+                                                                </p>
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center gap-1.5">
                                                             <button
-                                                                onClick={() => handleRestoreItem('category', cat.id)}
+                                                                onClick={() =>
+                                                                    handleRestoreItem(
+                                                                        "category",
+                                                                        cat.id,
+                                                                    )
+                                                                }
                                                                 className="px-2.5 py-1.5 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
                                                             >
                                                                 Pulihkan
                                                             </button>
                                                             <button
-                                                                onClick={() => handleForceDeleteItem('category', cat.id)}
+                                                                onClick={() =>
+                                                                    handleForceDeleteItem(
+                                                                        "category",
+                                                                        cat.id,
+                                                                    )
+                                                                }
                                                                 className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors"
                                                             >
                                                                 <Trash2 className="w-3.5 h-3.5" />
@@ -2914,34 +4130,57 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                         </div>
                                     )}
 
-                                    {trashSubTab === 'wallet' && (
+                                    {trashSubTab === "wallet" && (
                                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                                             {trashWallets.length === 0 ? (
                                                 <div className="col-span-full text-center py-12 border border-dashed border-slate-150 rounded-2xl">
                                                     <Wallet className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                                                    <p className="text-slate-500 font-bold text-sm">Tidak ada kantong di kotak sampah.</p>
+                                                    <p className="text-slate-500 font-bold text-sm">
+                                                        Tidak ada kantong di
+                                                        kotak sampah.
+                                                    </p>
                                                 </div>
                                             ) : (
-                                                trashWallets.map(w => (
-                                                    <div key={w.id} className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 flex items-center justify-between gap-4">
+                                                trashWallets.map((w) => (
+                                                    <div
+                                                        key={w.id}
+                                                        className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100 flex items-center justify-between gap-4"
+                                                    >
                                                         <div className="flex items-center gap-3">
                                                             <div className="w-10 h-10 rounded-xl bg-slate-200 flex items-center justify-center text-slate-600">
                                                                 <Wallet className="w-5 h-5" />
                                                             </div>
                                                             <div>
-                                                                <h5 className="font-bold text-sm text-slate-800">{w.name}</h5>
-                                                                <p className="text-[10px] font-bold text-slate-500">Saldo: {formatIDR(w.balance)}</p>
+                                                                <h5 className="font-bold text-sm text-slate-800">
+                                                                    {w.name}
+                                                                </h5>
+                                                                <p className="text-[10px] font-bold text-slate-500">
+                                                                    Saldo:{" "}
+                                                                    {formatIDR(
+                                                                        w.balance,
+                                                                    )}
+                                                                </p>
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center gap-1.5">
                                                             <button
-                                                                onClick={() => handleRestoreItem('wallet', w.id)}
+                                                                onClick={() =>
+                                                                    handleRestoreItem(
+                                                                        "wallet",
+                                                                        w.id,
+                                                                    )
+                                                                }
                                                                 className="px-2.5 py-1.5 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
                                                             >
                                                                 Pulihkan
                                                             </button>
                                                             <button
-                                                                onClick={() => handleForceDeleteItem('wallet', w.id)}
+                                                                onClick={() =>
+                                                                    handleForceDeleteItem(
+                                                                        "wallet",
+                                                                        w.id,
+                                                                    )
+                                                                }
                                                                 className="p-1.5 text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors"
                                                             >
                                                                 <Trash2 className="w-3.5 h-3.5" />
@@ -2966,7 +4205,11 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                         <div className="p-5 sm:p-6 flex items-center space-x-4 border-b border-slate-100">
                                             <div className="relative">
                                                 {currentUser?.avatar ? (
-                                                    <img src={`/storage/${currentUser.avatar}`} alt="Avatar" className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm" />
+                                                    <img
+                                                        src={`/storage/${currentUser.avatar}`}
+                                                        alt="Avatar"
+                                                        className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-sm"
+                                                    />
                                                 ) : (
                                                     <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-2xl shadow-sm shrink-0">
                                                         {currentUser?.name
@@ -2979,14 +4222,23 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                             </div>
                                             <div className="flex-1 min-w-0">
                                                 <h2 className="text-lg font-bold text-slate-900 truncate flex items-center gap-1.5">
-                                                    {currentUser?.name || "User"}
+                                                    {currentUser?.name ||
+                                                        "User"}
                                                     <BadgeCheck className="w-5 h-5 text-white fill-blue-500 flex-shrink-0" />
                                                 </h2>
                                                 <p className="text-sm text-slate-500 truncate">
-                                                    {currentUser?.email || "user@example.com"}
+                                                    {currentUser?.email ||
+                                                        "user@example.com"}
                                                 </p>
                                             </div>
-                                            <button onClick={() => setActiveSettingsTab("edit_profile")} className="text-blue-600 hover:text-blue-700 bg-blue-50 p-2 rounded-xl transition-colors">
+                                            <button
+                                                onClick={() =>
+                                                    setActiveSettingsTab(
+                                                        "edit_profile",
+                                                    )
+                                                }
+                                                className="text-blue-600 hover:text-blue-700 bg-blue-50 p-2 rounded-xl transition-colors"
+                                            >
                                                 <Edit className="w-4 h-4" />
                                             </button>
                                         </div>
@@ -3034,13 +4286,19 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                         {hasPermission("kelola_kategori") && (
                                             <button
                                                 onClick={() =>
-                                                    setActiveSettingsTab("kategori")
+                                                    setActiveSettingsTab(
+                                                        "kategori",
+                                                    )
                                                 }
-                                                className="w-full flex items-center justify-between p-4 hover:bg-slate-50 border-b border-slate-100 transition-colors"
+                                                className={`w-full flex items-center justify-between p-4 hover:bg-slate-50 border-b border-slate-100 transition-colors ${activeSettingsTab === "kategori" ? "bg-blue-50/30" : ""}`}
                                             >
                                                 <div className="flex items-center space-x-4">
-                                                    <Tag className="w-5 h-5 text-slate-400" />
-                                                    <span className="text-sm font-bold text-slate-700">
+                                                    <Tag
+                                                        className={`w-5 h-5 ${activeSettingsTab === "kategori" ? "text-blue-500" : "text-slate-400"}`}
+                                                    />
+                                                    <span
+                                                        className={`text-sm font-bold ${activeSettingsTab === "kategori" ? "text-blue-600" : "text-slate-700"}`}
+                                                    >
                                                         Manajemen Kategori
                                                     </span>
                                                 </div>
@@ -3048,8 +4306,44 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                             </button>
                                         )}
 
+                                        {hasPermission("ekspor_data") && (
+                                            <button
+                                                onClick={() => {
+                                                    setActiveTab("import");
+                                                    setActiveSettingsTab(null);
+                                                }}
+                                                className="w-full flex items-center justify-between p-4 hover:bg-slate-50 border-b border-slate-100 transition-colors md:hidden"
+                                            >
+                                                <div className="flex items-center space-x-4">
+                                                    <Upload className="w-5 h-5 text-slate-400" />
+                                                    <span className="text-sm font-bold text-slate-700">
+                                                        Import Data & File
+                                                    </span>
+                                                </div>
+                                                <ChevronRight className="w-4 h-4 text-slate-300" />
+                                            </button>
+                                        )}
+
                                         <button
-                                            onClick={() => setActiveSettingsTab("security")}
+                                            onClick={() => {
+                                                setActiveTab("sampah");
+                                                setActiveSettingsTab(null);
+                                            }}
+                                            className="w-full flex items-center justify-between p-4 hover:bg-slate-50 border-b border-slate-100 transition-colors md:hidden"
+                                        >
+                                            <div className="flex items-center space-x-4">
+                                                <Trash2 className="w-5 h-5 text-slate-400" />
+                                                <span className="text-sm font-bold text-slate-700">
+                                                    Sampah (Recycle Bin)
+                                                </span>
+                                            </div>
+                                            <ChevronRight className="w-4 h-4 text-slate-300" />
+                                        </button>
+
+                                        <button
+                                            onClick={() =>
+                                                setActiveSettingsTab("security")
+                                            }
                                             className="w-full flex items-center justify-between p-4 hover:bg-slate-50 border-b border-slate-100 transition-colors"
                                         >
                                             <div className="flex items-center space-x-4">
@@ -3064,7 +4358,9 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                         {hasPermission("kelola_anggota") && (
                                             <button
                                                 onClick={() =>
-                                                    setActiveSettingsTab("anggota")
+                                                    setActiveSettingsTab(
+                                                        "anggota",
+                                                    )
                                                 }
                                                 className="w-full flex items-center justify-between p-4 hover:bg-slate-50 border-b border-slate-100 transition-colors"
                                             >
@@ -3079,7 +4375,9 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                         )}
 
                                         <button
-                                            onClick={() => setActiveSettingsTab("logs")}
+                                            onClick={() =>
+                                                setActiveSettingsTab("logs")
+                                            }
                                             className="w-full flex items-center justify-between p-4 hover:bg-slate-50 border-b border-slate-100 transition-colors"
                                         >
                                             <div className="flex items-center space-x-4">
@@ -3094,7 +4392,9 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                         {/* Reset Seluruh Data (Hanya untuk yang memiliki permission reset_data) */}
                                         {hasPermission("reset_data") && (
                                             <button
-                                                onClick={() => setIsResetModalOpen(true)}
+                                                onClick={() =>
+                                                    setIsResetModalOpen(true)
+                                                }
                                                 className="w-full flex items-center justify-between p-4 hover:bg-slate-50 border-b border-slate-100 transition-colors group"
                                             >
                                                 <div className="flex items-center space-x-4">
@@ -3139,7 +4439,7 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                                 setNewCat({
                                                     id: null,
                                                     name: "",
-                                                    budget: "",
+                                                    budget: "0",
                                                     icon: "Grid",
                                                     color: "bg-blue-500",
                                                 });
@@ -3152,7 +4452,7 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                         </button>
                                     </div>
                                     <div className="mb-4 pt-2">
-                                        <h3 className="font-bold text-lg text-slate-900 mb-1">
+                                        <h3 className="font-bold text-lg text-slate-900 mb-1 py-2 px-1">
                                             Kategori Pengeluaran
                                         </h3>
                                         <p className="text-xs text-slate-500">
@@ -3172,133 +4472,319 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                                     "November",
                                                     "Desember",
                                                 ][selectedMonth - 1]
-                                            }{" "}
+                                            }
+                                            {selectedMonth !==
+                                                selectedEndMonth && (
+                                                <>
+                                                    {" "}
+                                                    -{" "}
+                                                    {
+                                                        [
+                                                            "Januari",
+                                                            "Februari",
+                                                            "Maret",
+                                                            "April",
+                                                            "Mei",
+                                                            "Juni",
+                                                            "Juli",
+                                                            "Agustus",
+                                                            "September",
+                                                            "Oktober",
+                                                            "November",
+                                                            "Desember",
+                                                        ][selectedEndMonth - 1]
+                                                    }
+                                                </>
+                                            )}{" "}
                                             {selectedYear}.
                                         </p>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-5">
-                                        {categories.map((c) => {
-                                            const spent =
-                                                expenseByCategoryForSelectedMonth[
-                                                    c.id
-                                                ] || 0;
-                                            const percentage =
-                                                c.budget > 0
-                                                    ? Math.min(
-                                                          (spent / c.budget) *
-                                                              100,
-                                                          100,
-                                                      )
-                                                    : 0;
-                                            let IconComp = Grid;
-                                            if (c.icon === "Utensils")
-                                                IconComp = Utensils;
-                                            if (c.icon === "Car")
-                                                IconComp = Car;
-                                            if (c.icon === "FileText")
-                                                IconComp = FileText;
-                                            if (c.icon === "Tv") IconComp = Tv;
-                                            if (c.icon === "HeartPulse")
-                                                IconComp = HeartPulse;
+                                        <div className="grid grid-cols-1 mt-5 sm:grid-cols-2 gap-6">
+                                            {(() => {
+                                                const getIcon = (iconName) => {
+                                                    return (
+                                                        ICON_MAP[iconName] ||
+                                                        Grid
+                                                    );
+                                                };
 
-                                            return (
-                                                <div
-                                                    key={c.id}
-                                                    className="p-5 rounded-2xl bg-white border border-slate-100 shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.1)] hover:border-blue-100 transition-all duration-300 group flex flex-col justify-between"
-                                                >
-                                                    <div className="flex items-start justify-between mb-5">
-                                                        <div className="flex items-center space-x-3">
-                                                            <div
-                                                                className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-sm ${c.color}`}
-                                                            >
-                                                                <IconComp className="w-6 h-6" />
-                                                            </div>
-                                                            <div>
-                                                                <h4 className="font-bold text-sm text-slate-800 line-clamp-1">
-                                                                    {c.name}
-                                                                </h4>
-                                                                <span className="text-[11px] text-slate-500 font-semibold block mt-0.5">
-                                                                    Limit:{" "}
-                                                                    {formatIDR(
-                                                                        c.budget,
-                                                                    )}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex items-center space-x-1.5 md:opacity-0 md:group-hover:opacity-100 transition-all">
-                                                            <button
-                                                                onClick={() => {
-                                                                    setNewCat({
-                                                                        id: c.id,
-                                                                        name: c.name,
-                                                                        budget: c.budget.toString(),
-                                                                        icon:
-                                                                            c.icon ||
-                                                                            "Grid",
-                                                                        color:
-                                                                            c.color ||
-                                                                            "bg-blue-500",
-                                                                    });
-                                                                    setShowAddCategoryModal(
-                                                                        true,
-                                                                    );
-                                                                }}
-                                                                className="w-8 h-8 flex flex-shrink-0 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 shadow-sm transition-all"
-                                                            >
-                                                                <Edit className="w-4 h-4" />
-                                                            </button>
-                                                            <button
-                                                                onClick={() =>
-                                                                    handleDeleteCategory(
-                                                                        c.id,
+                                                const parentCats =
+                                                    categories.filter(
+                                                        (c) => !c.parentId,
+                                                    );
+                                                const orphanChilds =
+                                                    categories.filter(
+                                                        (c) =>
+                                                            c.parentId &&
+                                                            !categories.some(
+                                                                (p) =>
+                                                                    p.id ===
+                                                                    c.parentId,
+                                                            ),
+                                                    );
+                                                const rootItems = [
+                                                    ...parentCats,
+                                                    ...orphanChilds,
+                                                ];
+
+                                                return rootItems.map(
+                                                    (parent) => {
+                                                        const childs =
+                                                            categories.filter(
+                                                                (c) =>
+                                                                    c.parentId ===
+                                                                    parent.id,
+                                                            );
+                                                        const ParentIcon =
+                                                            getIcon(
+                                                                parent.icon,
+                                                            );
+                                                        const isOrphan =
+                                                            !!parent.parentId;
+
+                                                        const getSubColors = (
+                                                            colorClass,
+                                                        ) => {
+                                                            if (!colorClass)
+                                                                return {
+                                                                    bg: "bg-slate-50",
+                                                                    text: "text-slate-600",
+                                                                };
+                                                            const baseColor =
+                                                                colorClass
+                                                                    .replace(
+                                                                        "bg-",
+                                                                        "",
                                                                     )
-                                                                }
-                                                                className="w-8 h-8 flex flex-shrink-0 items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 shadow-sm transition-all"
-                                                            >
-                                                                <Trash2 className="w-4 h-4" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex justify-between items-end mb-2 font-bold">
-                                                            <div>
-                                                                <span className="text-[10px] uppercase tracking-wider text-slate-400 block mb-0.5">
-                                                                    Terpakai
-                                                                </span>
-                                                                <span
-                                                                    className={`text-sm ${percentage >= 100 ? "text-rose-600" : "text-slate-800"}`}
-                                                                >
-                                                                    {formatIDR(
-                                                                        spent,
-                                                                    )}
-                                                                </span>
-                                                            </div>
-                                                            <span
-                                                                className={`text-xs ${percentage >= 100 ? "text-rose-500" : "text-blue-600"}`}
-                                                            >
-                                                                {percentage.toFixed(
-                                                                    0,
-                                                                )}
-                                                                %
-                                                            </span>
-                                                        </div>
-                                                        <div className="w-full bg-slate-100/80 rounded-full h-2 overflow-hidden shadow-inner">
+                                                                    .replace(
+                                                                        "-500",
+                                                                        "",
+                                                                    )
+                                                                    .replace(
+                                                                        "-600",
+                                                                        "",
+                                                                    )
+                                                                    .replace(
+                                                                        "-400",
+                                                                        "",
+                                                                    );
+                                                            return {
+                                                                bg: `bg-${baseColor}-50/40`,
+                                                                text: `text-${baseColor}-600`,
+                                                            };
+                                                        };
+
+                                                        return (
                                                             <div
-                                                                className={`h-2 rounded-full transition-all duration-500 ${percentage >= 100 ? "bg-rose-500 shadow-rose-200" : "bg-blue-500 shadow-blue-200"} shadow-[0_0_8px_rgba(0,0,0,0.2)]`}
-                                                                style={{
-                                                                    width: `${percentage}%`,
-                                                                }}
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                                                key={parent.id}
+                                                                className={`relative overflow-hidden pt-7 p-6 rounded-3xl bg-white border border-slate-150 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_30px_-6px_rgba(0,0,0,0.08)] transition-all duration-300 flex flex-col justify-between`}
+                                                            >
+                                                                {/* Left or Top Accent color bar for Parent Categories */}
+                                                                <div
+                                                                    className={`absolute top-0 left-0 right-0 h-1.5 ${parent.color || "bg-blue-600"}`}
+                                                                />
+
+                                                                <div>
+                                                                    {/* Parent Card Header */}
+                                                                    <div className="flex items-start justify-between">
+                                                                        <div className="flex items-center space-x-3.5">
+                                                                            <div
+                                                                                className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white shadow-md ${parent.color || "bg-blue-600"}`}
+                                                                            >
+                                                                                <ParentIcon className="w-6 h-6" />
+                                                                            </div>
+                                                                            <div>
+                                                                                <h4 className="font-black text-sm md:text-base text-slate-800 flex items-center gap-1.5">
+                                                                                    {
+                                                                                        parent.name
+                                                                                    }
+                                                                                    {isOrphan && (
+                                                                                        <span className="text-[8px] bg-amber-50 text-amber-600 border border-amber-100 px-1.5 py-0.5 rounded-full font-bold">
+                                                                                            Sub
+                                                                                            Yatim
+                                                                                        </span>
+                                                                                    )}
+                                                                                </h4>
+                                                                                <div className="flex items-center gap-1.5 mt-0.5">
+                                                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-slate-100 text-slate-500 tracking-wider uppercase">
+                                                                                        Utama
+                                                                                    </span>
+                                                                                    {childs.length >
+                                                                                        0 && (
+                                                                                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-blue-50/50 text-blue-600 tracking-wider">
+                                                                                            {
+                                                                                                childs.length
+                                                                                            }{" "}
+                                                                                            Sub
+                                                                                        </span>
+                                                                                    )}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+
+                                                                        {/* Actions */}
+                                                                        <div className="flex items-center space-x-1">
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    setNewCat(
+                                                                                        {
+                                                                                            id: parent.id,
+                                                                                            name: parent.name,
+                                                                                            budget: parent.budget.toString(),
+                                                                                            icon:
+                                                                                                parent.icon ||
+                                                                                                "Grid",
+                                                                                            color:
+                                                                                                parent.color ||
+                                                                                                "bg-blue-500",
+                                                                                            parentId:
+                                                                                                parent.parentId ||
+                                                                                                null,
+                                                                                            priorityLevel:
+                                                                                                parent.priorityLevel ||
+                                                                                                5,
+                                                                                        },
+                                                                                    );
+                                                                                    setShowAddCategoryModal(
+                                                                                        true,
+                                                                                    );
+                                                                                }}
+                                                                                className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-50 text-slate-450 hover:text-blue-600 hover:bg-blue-50 transition-all animate-fadeIn"
+                                                                                title="Edit Kategori Utama"
+                                                                            >
+                                                                                <Edit className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                            <button
+                                                                                onClick={() =>
+                                                                                    handleDeleteCategory(
+                                                                                        parent.id,
+                                                                                    )
+                                                                                }
+                                                                                className="w-7 h-7 flex items-center justify-center rounded-lg bg-slate-50 text-slate-455 hover:text-rose-600 hover:bg-rose-50 transition-all animate-fadeIn"
+                                                                                title="Hapus Kategori Utama"
+                                                                            >
+                                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Child Categories (Sub-Kategori) */}
+                                                                    {childs.length >
+                                                                        0 && (
+                                                                        <div className="mt-5 pt-4 border-t border-slate-100 space-y-2.5">
+                                                                            <div className="flex items-center justify-between mb-1">
+                                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                                                                    Daftar
+                                                                                    Sub-Kategori
+                                                                                </span>
+                                                                            </div>
+                                                                            <div className="grid grid-cols-1 gap-2">
+                                                                                {childs.map(
+                                                                                    (
+                                                                                        child,
+                                                                                    ) => {
+                                                                                        const ChildIcon =
+                                                                                            getIcon(
+                                                                                                child.icon,
+                                                                                            );
+                                                                                        const subColors =
+                                                                                            getSubColors(
+                                                                                                child.color,
+                                                                                            );
+                                                                                        return (
+                                                                                            <div
+                                                                                                key={
+                                                                                                    child.id
+                                                                                                }
+                                                                                                className="flex items-center justify-between p-3 rounded-2xl bg-slate-50/50 border border-slate-100 hover:bg-white hover:border-slate-200 hover:shadow-sm transition-all duration-200 group/child"
+                                                                                            >
+                                                                                                <div className="flex items-center space-x-3">
+                                                                                                    <div
+                                                                                                        className={`w-8 h-8 rounded-xl flex items-center justify-center ${subColors.bg} ${subColors.text} border border-slate-100/50`}
+                                                                                                    >
+                                                                                                        <ChildIcon className="w-4 h-4" />
+                                                                                                    </div>
+                                                                                                    <div>
+                                                                                                        <span className="text-xs font-bold text-slate-750 block">
+                                                                                                            {
+                                                                                                                child.name
+                                                                                                            }
+                                                                                                        </span>
+                                                                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">
+                                                                                                            Sub-Kategori
+                                                                                                        </span>
+                                                                                                    </div>
+                                                                                                </div>
+
+                                                                                                <div className="flex items-center space-x-1 md:opacity-0 md:group-hover/child:opacity-100 opacity-100 transition-opacity">
+                                                                                                    <button
+                                                                                                        onClick={() => {
+                                                                                                            setNewCat(
+                                                                                                                {
+                                                                                                                    id: child.id,
+                                                                                                                    name: child.name,
+                                                                                                                    budget: child.budget.toString(),
+                                                                                                                    icon:
+                                                                                                                        child.icon ||
+                                                                                                                        "Grid",
+                                                                                                                    color:
+                                                                                                                        child.color ||
+                                                                                                                        "bg-blue-500",
+                                                                                                                    parentId:
+                                                                                                                        child.parentId ||
+                                                                                                                        null,
+                                                                                                                    priorityLevel:
+                                                                                                                        child.priorityLevel ||
+                                                                                                                        5,
+                                                                                                                },
+                                                                                                            );
+                                                                                                            setShowAddCategoryModal(
+                                                                                                                true,
+                                                                                                            );
+                                                                                                        }}
+                                                                                                        className="w-6 h-6 flex items-center justify-center rounded-md bg-white border border-slate-100 text-slate-400 hover:text-blue-600 hover:border-blue-100 hover:bg-blue-55 transition-all"
+                                                                                                        title="Edit Sub-Kategori"
+                                                                                                    >
+                                                                                                        <Edit className="w-3 h-3" />
+                                                                                                    </button>
+                                                                                                    <button
+                                                                                                        onClick={() =>
+                                                                                                            handleDeleteCategory(
+                                                                                                                child.id,
+                                                                                                            )
+                                                                                                        }
+                                                                                                        className="w-6 h-6 flex items-center justify-center rounded-md bg-white border border-slate-100 text-slate-400 hover:text-rose-600 hover:border-rose-100 hover:bg-rose-55 transition-all"
+                                                                                                        title="Hapus Sub-Kategori"
+                                                                                                    >
+                                                                                                        <Trash2 className="w-3 h-3" />
+                                                                                                    </button>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        );
+                                                                                    },
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    },
+                                                );
+                                            })()}
+                                        </div>{" "}
                                     </div>
 
                                     {showAddCategoryModal && (
-                                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-fadeIn">
-                                            <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto w-full h-full min-h-screen">
+                                            <div
+                                                className="fixed inset-0 w-full h-full bg-slate-900/60 backdrop-blur-md transition-opacity"
+                                                onClick={() =>
+                                                    setShowAddCategoryModal(
+                                                        false,
+                                                    )
+                                                }
+                                            />
+                                            <div className="relative bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh] z-10 border border-slate-100/50">
                                                 <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                                                     <h3 className="font-bold text-lg text-slate-800">
                                                         {newCat.id
@@ -3346,43 +4832,119 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                                         </div>
                                                         <div>
                                                             <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
-                                                                Anggaran Bulanan
-                                                                (Limit)
+                                                                Prioritas
+                                                                Anggaran
                                                             </label>
-                                                            <div className="relative">
-                                                                <input
-                                                                    type="text"
-                                                                    placeholder={
-                                                                        newCat.id
-                                                                            ? "Budget bulan lalu"
-                                                                            : "Rp 0"
-                                                                    }
-                                                                    value={
-                                                                        newCat.budget
-                                                                            ? formatIDR(
-                                                                                  newCat.budget,
-                                                                              )
-                                                                            : ""
-                                                                    }
-                                                                    onChange={(
-                                                                        e,
-                                                                    ) => {
-                                                                        const val =
-                                                                            e.target.value.replace(
-                                                                                /[^0-9]/g,
-                                                                                "",
-                                                                            );
-                                                                        setNewCat(
-                                                                            {
-                                                                                ...newCat,
-                                                                                budget: val,
-                                                                            },
-                                                                        );
-                                                                    }}
-                                                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-medium"
-                                                                    required
-                                                                />
-                                                            </div>
+                                                            <select
+                                                                value={
+                                                                    newCat.priorityLevel ||
+                                                                    5
+                                                                }
+                                                                onChange={(e) =>
+                                                                    setNewCat({
+                                                                        ...newCat,
+                                                                        priorityLevel:
+                                                                            parseInt(
+                                                                                e
+                                                                                    .target
+                                                                                    .value,
+                                                                            ),
+                                                                    })
+                                                                }
+                                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-semibold"
+                                                            >
+                                                                <option
+                                                                    value={1}
+                                                                >
+                                                                    Prioritas 1:
+                                                                    Kebutuhan
+                                                                    Pokok
+                                                                </option>
+                                                                <option
+                                                                    value={2}
+                                                                >
+                                                                    Prioritas 2:
+                                                                    Transportasi
+                                                                    & Kerja
+                                                                </option>
+                                                                <option
+                                                                    value={3}
+                                                                >
+                                                                    Prioritas 3:
+                                                                    Kebutuhan
+                                                                    Pendukung
+                                                                </option>
+                                                                <option
+                                                                    value={4}
+                                                                >
+                                                                    Prioritas 4:
+                                                                    Kesehatan &
+                                                                    Perawatan
+                                                                </option>
+                                                                <option
+                                                                    value={5}
+                                                                >
+                                                                    Prioritas 5:
+                                                                    Gaya Hidup
+                                                                    (Dihitung
+                                                                    Otomatis)
+                                                                </option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
+                                                                Induk Kategori
+                                                                (Opsional)
+                                                            </label>
+                                                            <select
+                                                                value={
+                                                                    newCat.parentId ||
+                                                                    ""
+                                                                }
+                                                                onChange={(e) =>
+                                                                    setNewCat({
+                                                                        ...newCat,
+                                                                        parentId:
+                                                                            e
+                                                                                .target
+                                                                                .value
+                                                                                ? e
+                                                                                      .target
+                                                                                      .value
+                                                                                : null,
+                                                                    })
+                                                                }
+                                                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-semibold"
+                                                            >
+                                                                <option value="">
+                                                                    Tanpa Induk
+                                                                    (Kategori
+                                                                    Utama)
+                                                                </option>
+                                                                {categories
+                                                                    .filter(
+                                                                        (c) =>
+                                                                            c.id !==
+                                                                                newCat.id &&
+                                                                            !c.parentId,
+                                                                    )
+                                                                    .map(
+                                                                        (c) => (
+                                                                            <option
+                                                                                key={
+                                                                                    c.id
+                                                                                }
+                                                                                value={
+                                                                                    c.id
+                                                                                }
+                                                                            >
+                                                                                {
+                                                                                    c.name
+                                                                                }
+                                                                            </option>
+                                                                        ),
+                                                                    )}
+                                                            </select>
                                                         </div>
                                                         <div>
                                                             <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-2">
@@ -3422,29 +4984,35 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                                                 Ikon
                                                             </label>
                                                             <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
-                                                                {Object.keys(ICON_MAP).map(
+                                                                {Object.keys(
+                                                                    ICON_MAP,
+                                                                ).map(
                                                                     (name) => {
-                                                                        const Icon = ICON_MAP[name];
-                                                                        return (
-                                                                        <button
-                                                                            key={
+                                                                        const Icon =
+                                                                            ICON_MAP[
                                                                                 name
-                                                                            }
-                                                                            type="button"
-                                                                            onClick={() =>
-                                                                                setNewCat(
-                                                                                    {
-                                                                                        ...newCat,
-                                                                                        icon: name,
-                                                                                    },
-                                                                                )
-                                                                            }
-                                                                            className={`flex items-center justify-center p-3 rounded-xl border transition-all ${newCat.icon === name ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100"}`}
-                                                                        >
-                                                                            <Icon className="w-5 h-5" />
-                                                                        </button>
-                                                                    );
-                                                                })}
+                                                                            ];
+                                                                        return (
+                                                                            <button
+                                                                                key={
+                                                                                    name
+                                                                                }
+                                                                                type="button"
+                                                                                onClick={() =>
+                                                                                    setNewCat(
+                                                                                        {
+                                                                                            ...newCat,
+                                                                                            icon: name,
+                                                                                        },
+                                                                                    )
+                                                                                }
+                                                                                className={`flex items-center justify-center p-3 rounded-xl border transition-all ${newCat.icon === name ? "border-blue-500 bg-blue-50 text-blue-600" : "border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100"}`}
+                                                                            >
+                                                                                <Icon className="w-5 h-5" />
+                                                                            </button>
+                                                                        );
+                                                                    },
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -3471,7 +5039,9 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                 <div className="space-y-6 animate-fadeIn">
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                         <button
-                                            onClick={() => setActiveSettingsTab("profile")}
+                                            onClick={() =>
+                                                setActiveSettingsTab("profile")
+                                            }
                                             className="flex items-center space-x-2 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors w-fit"
                                         >
                                             <ArrowLeft className="w-4 h-4" />
@@ -3484,38 +5054,77 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                     </div>
 
                                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-                                        <form onSubmit={submitProfileUpdate} className="p-5 sm:p-8 space-y-8">
+                                        <form
+                                            onSubmit={submitProfileUpdate}
+                                            className="p-5 sm:p-8 space-y-8"
+                                        >
                                             {/* Photo Profile Section */}
                                             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
                                                 <div className="relative group cursor-pointer">
-                                                    <label htmlFor="avatar-upload" className="block cursor-pointer">
+                                                    <label
+                                                        htmlFor="avatar-upload"
+                                                        className="block cursor-pointer"
+                                                    >
                                                         {profileData.avatar ? (
-                                                            <img src={URL.createObjectURL(profileData.avatar)} alt="Avatar" className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover shadow-md border-4 border-white" />
+                                                            <img
+                                                                src={URL.createObjectURL(
+                                                                    profileData.avatar,
+                                                                )}
+                                                                alt="Avatar"
+                                                                className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover shadow-md border-4 border-white"
+                                                            />
                                                         ) : currentUser?.avatar ? (
-                                                            <img src={`/storage/${currentUser.avatar}`} alt="Avatar" className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover shadow-md border-4 border-white" />
+                                                            <img
+                                                                src={`/storage/${currentUser.avatar}`}
+                                                                alt="Avatar"
+                                                                className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover shadow-md border-4 border-white"
+                                                            />
                                                         ) : (
                                                             <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white font-bold text-4xl shadow-md border-4 border-white">
-                                                                {currentUser?.name ? currentUser.name.charAt(0).toUpperCase() : "U"}
+                                                                {currentUser?.name
+                                                                    ? currentUser.name
+                                                                          .charAt(
+                                                                              0,
+                                                                          )
+                                                                          .toUpperCase()
+                                                                    : "U"}
                                                             </div>
                                                         )}
                                                         <div className="absolute bottom-0 right-0 w-8 h-8 sm:w-10 sm:h-10 bg-white rounded-full border border-slate-200 shadow-lg flex items-center justify-center text-slate-600 hover:text-blue-600 transition-colors group-hover:scale-110">
                                                             <Upload className="w-4 h-4 sm:w-5 sm:h-5" />
                                                         </div>
                                                     </label>
-                                                    <input 
-                                                        id="avatar-upload" 
-                                                        type="file" 
-                                                        accept=".jpg,.jpeg,.png" 
-                                                        className="hidden" 
-                                                        onChange={(e) => setProfileData('avatar', e.target.files[0])}
+                                                    <input
+                                                        id="avatar-upload"
+                                                        type="file"
+                                                        accept=".jpg,.jpeg,.png"
+                                                        className="hidden"
+                                                        onChange={(e) =>
+                                                            setProfileData(
+                                                                "avatar",
+                                                                e.target
+                                                                    .files[0],
+                                                            )
+                                                        }
                                                     />
                                                 </div>
                                                 <div className="text-center sm:text-left flex-1 pt-2">
-                                                    <h3 className="font-bold text-slate-800 text-lg mb-1">Foto Profil</h3>
+                                                    <h3 className="font-bold text-slate-800 text-lg mb-1">
+                                                        Foto Profil
+                                                    </h3>
                                                     <p className="text-sm text-slate-500 max-w-md">
-                                                        Gunakan foto dengan rasio 1:1. Ukuran maksimal 2MB. (Format: JPG, PNG).
+                                                        Gunakan foto dengan
+                                                        rasio 1:1. Ukuran
+                                                        maksimal 2MB. (Format:
+                                                        JPG, PNG).
                                                     </p>
-                                                    {profileErrors.avatar && <p className="text-xs text-rose-500 mt-1.5">{profileErrors.avatar}</p>}
+                                                    {profileErrors.avatar && (
+                                                        <p className="text-xs text-rose-500 mt-1.5">
+                                                            {
+                                                                profileErrors.avatar
+                                                            }
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -3524,44 +5133,84 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                             {/* Form Fields */}
                                             <div className="space-y-5">
                                                 <div>
-                                                    <label className="block text-sm font-bold text-slate-700 mb-2">Nama Lengkap</label>
+                                                    <label className="block text-sm font-bold text-slate-700 mb-2">
+                                                        Nama Lengkap
+                                                    </label>
                                                     <div className="relative">
                                                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
                                                             <User className="w-5 h-5" />
                                                         </div>
-                                                        <input 
-                                                            type="text" 
-                                                            value={profileData.name} 
-                                                            onChange={e => setProfileData('name', e.target.value)}
-                                                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none" 
+                                                        <input
+                                                            type="text"
+                                                            value={
+                                                                profileData.name
+                                                            }
+                                                            onChange={(e) =>
+                                                                setProfileData(
+                                                                    "name",
+                                                                    e.target
+                                                                        .value,
+                                                                )
+                                                            }
+                                                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
                                                             placeholder="Masukkan nama lengkap Anda"
                                                         />
                                                     </div>
-                                                    {profileErrors.name && <p className="text-xs text-rose-500 mt-1.5">{profileErrors.name}</p>}
+                                                    {profileErrors.name && (
+                                                        <p className="text-xs text-rose-500 mt-1.5">
+                                                            {profileErrors.name}
+                                                        </p>
+                                                    )}
                                                 </div>
-                                                
+
                                                 <div>
-                                                    <label className="block text-sm font-bold text-slate-700 mb-2">Alamat Email</label>
+                                                    <label className="block text-sm font-bold text-slate-700 mb-2">
+                                                        Alamat Email
+                                                    </label>
                                                     <div className="relative">
                                                         <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
                                                             <Mail className="w-5 h-5" />
                                                         </div>
-                                                        <input 
-                                                            type="email" 
-                                                            value={profileData.email} 
-                                                            onChange={e => setProfileData('email', e.target.value)}
-                                                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none" 
+                                                        <input
+                                                            type="email"
+                                                            value={
+                                                                profileData.email
+                                                            }
+                                                            onChange={(e) =>
+                                                                setProfileData(
+                                                                    "email",
+                                                                    e.target
+                                                                        .value,
+                                                                )
+                                                            }
+                                                            className="w-full pl-12 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
                                                             placeholder="contoh@email.com"
                                                         />
                                                     </div>
-                                                    {profileErrors.email && <p className="text-xs text-rose-500 mt-1.5">{profileErrors.email}</p>}
+                                                    {profileErrors.email && (
+                                                        <p className="text-xs text-rose-500 mt-1.5">
+                                                            {
+                                                                profileErrors.email
+                                                            }
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
 
                                             <div className="pt-4 flex justify-end">
-                                                <button disabled={processingProfile} type="submit" className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center space-x-2">
-                                                    {processingProfile ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
-                                                    <span>Simpan Perubahan</span>
+                                                <button
+                                                    disabled={processingProfile}
+                                                    type="submit"
+                                                    className="w-full sm:w-auto px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-md hover:bg-blue-700 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center space-x-2"
+                                                >
+                                                    {processingProfile ? (
+                                                        <RefreshCw className="w-5 h-5 animate-spin" />
+                                                    ) : (
+                                                        <Check className="w-5 h-5" />
+                                                    )}
+                                                    <span>
+                                                        Simpan Perubahan
+                                                    </span>
                                                 </button>
                                             </div>
                                         </form>
@@ -3574,7 +5223,9 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                 <div className="space-y-6 animate-fadeIn">
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                         <button
-                                            onClick={() => setActiveSettingsTab("profile")}
+                                            onClick={() =>
+                                                setActiveSettingsTab("profile")
+                                            }
                                             className="flex items-center space-x-2 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors w-fit"
                                         >
                                             <ArrowLeft className="w-4 h-4" />
@@ -3590,85 +5241,181 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                                         <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center space-x-3">
                                             <KeyRound className="w-6 h-6 text-slate-400" />
-                                            <h3 className="font-bold text-slate-800">Ubah Password</h3>
+                                            <h3 className="font-bold text-slate-800">
+                                                Ubah Password
+                                            </h3>
                                         </div>
-                                        <form onSubmit={submitPasswordUpdate} className="p-5 sm:p-6 space-y-6">
+                                        <form
+                                            onSubmit={submitPasswordUpdate}
+                                            className="p-5 sm:p-6 space-y-6"
+                                        >
                                             <div>
-                                                <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Password Saat Ini</label>
+                                                <label className="block text-xs font-bold text-slate-600 uppercase mb-2">
+                                                    Password Saat Ini
+                                                </label>
                                                 <div className="relative">
-                                                    <input 
-                                                        type={showPassword ? "text" : "password"}
-                                                        value={pwdData.current_password}
-                                                        onChange={e => setPwdData('current_password', e.target.value)}
+                                                    <input
+                                                        type={
+                                                            showPassword
+                                                                ? "text"
+                                                                : "password"
+                                                        }
+                                                        value={
+                                                            pwdData.current_password
+                                                        }
+                                                        onChange={(e) =>
+                                                            setPwdData(
+                                                                "current_password",
+                                                                e.target.value,
+                                                            )
+                                                        }
                                                         className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
                                                         placeholder="Masukkan password lama"
                                                     />
-                                                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                                                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            setShowPassword(
+                                                                !showPassword,
+                                                            )
+                                                        }
+                                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                                                    >
+                                                        {showPassword ? (
+                                                            <EyeOff className="w-5 h-5" />
+                                                        ) : (
+                                                            <Eye className="w-5 h-5" />
+                                                        )}
                                                     </button>
                                                 </div>
-                                                {pwdErrors.current_password && <p className="text-xs text-rose-500 mt-1">{pwdErrors.current_password}</p>}
+                                                {pwdErrors.current_password && (
+                                                    <p className="text-xs text-rose-500 mt-1">
+                                                        {
+                                                            pwdErrors.current_password
+                                                        }
+                                                    </p>
+                                                )}
                                             </div>
 
                                             <div>
                                                 <div className="flex items-center justify-between mb-2">
-                                                    <label className="block text-xs font-bold text-slate-600 uppercase">Password Baru</label>
-                                                    <button type="button" onClick={generatePassword} className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center space-x-1 bg-blue-50 px-2 py-1 rounded-lg">
+                                                    <label className="block text-xs font-bold text-slate-600 uppercase">
+                                                        Password Baru
+                                                    </label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={
+                                                            generatePassword
+                                                        }
+                                                        className="text-xs font-bold text-blue-600 hover:text-blue-700 flex items-center space-x-1 bg-blue-50 px-2 py-1 rounded-lg"
+                                                    >
                                                         <Sparkles className="w-3.5 h-3.5" />
                                                         <span>Generate</span>
                                                     </button>
                                                 </div>
                                                 <div className="relative">
-                                                    <input 
-                                                        type={showPassword ? "text" : "password"}
+                                                    <input
+                                                        type={
+                                                            showPassword
+                                                                ? "text"
+                                                                : "password"
+                                                        }
                                                         value={pwdData.password}
-                                                        onChange={e => setPwdData('password', e.target.value)}
+                                                        onChange={(e) =>
+                                                            setPwdData(
+                                                                "password",
+                                                                e.target.value,
+                                                            )
+                                                        }
                                                         className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
                                                         placeholder="Masukkan password baru"
                                                     />
                                                 </div>
-                                                {pwdErrors.password && <p className="text-xs text-rose-500 mt-1">{pwdErrors.password}</p>}
-                                                
+                                                {pwdErrors.password && (
+                                                    <p className="text-xs text-rose-500 mt-1">
+                                                        {pwdErrors.password}
+                                                    </p>
+                                                )}
+
                                                 {/* Password Strength Indicator */}
-                                                {pwdData.password && (() => {
-                                                    const strength = evaluatePasswordStrength(pwdData.password);
-                                                    return (
-                                                        <div className="mt-3">
-                                                            <div className="flex justify-between items-center mb-1">
-                                                                <span className="text-xs font-bold text-slate-500">Kekuatan Password</span>
-                                                                <span className={`text-xs font-bold ${strength.color.replace('bg-', 'text-')}`}>{strength.label}</span>
+                                                {pwdData.password &&
+                                                    (() => {
+                                                        const strength =
+                                                            evaluatePasswordStrength(
+                                                                pwdData.password,
+                                                            );
+                                                        return (
+                                                            <div className="mt-3">
+                                                                <div className="flex justify-between items-center mb-1">
+                                                                    <span className="text-xs font-bold text-slate-500">
+                                                                        Kekuatan
+                                                                        Password
+                                                                    </span>
+                                                                    <span
+                                                                        className={`text-xs font-bold ${strength.color.replace("bg-", "text-")}`}
+                                                                    >
+                                                                        {
+                                                                            strength.label
+                                                                        }
+                                                                    </span>
+                                                                </div>
+                                                                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
+                                                                    <div
+                                                                        className={`h-full ${strength.color} transition-all duration-300`}
+                                                                        style={{
+                                                                            width: strength.width,
+                                                                        }}
+                                                                    ></div>
+                                                                </div>
                                                             </div>
-                                                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex">
-                                                                <div className={`h-full ${strength.color} transition-all duration-300`} style={{ width: strength.width }}></div>
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })()}
-                                                
+                                                        );
+                                                    })()}
+
                                                 {/* Password Rules */}
                                                 <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                                    <div className={`flex items-center space-x-1.5 text-xs font-bold ${/[A-Z]/.test(pwdData.password) ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                                    <div
+                                                        className={`flex items-center space-x-1.5 text-xs font-bold ${/[A-Z]/.test(pwdData.password) ? "text-emerald-500" : "text-slate-400"}`}
+                                                    >
                                                         <CheckCircle className="w-3.5 h-3.5" />
                                                         <span>Huruf Besar</span>
                                                     </div>
-                                                    <div className={`flex items-center space-x-1.5 text-xs font-bold ${/[0-9]/.test(pwdData.password) ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                                    <div
+                                                        className={`flex items-center space-x-1.5 text-xs font-bold ${/[0-9]/.test(pwdData.password) ? "text-emerald-500" : "text-slate-400"}`}
+                                                    >
                                                         <CheckCircle className="w-3.5 h-3.5" />
                                                         <span>Angka</span>
                                                     </div>
-                                                    <div className={`flex items-center space-x-1.5 text-xs font-bold ${/[^A-Za-z0-9]/.test(pwdData.password) ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                                    <div
+                                                        className={`flex items-center space-x-1.5 text-xs font-bold ${/[^A-Za-z0-9]/.test(pwdData.password) ? "text-emerald-500" : "text-slate-400"}`}
+                                                    >
                                                         <CheckCircle className="w-3.5 h-3.5" />
-                                                        <span>Simbol (!@#)</span>
+                                                        <span>
+                                                            Simbol (!@#)
+                                                        </span>
                                                     </div>
                                                 </div>
                                             </div>
 
                                             <div>
-                                                <label className="block text-xs font-bold text-slate-600 uppercase mb-2">Konfirmasi Password</label>
+                                                <label className="block text-xs font-bold text-slate-600 uppercase mb-2">
+                                                    Konfirmasi Password
+                                                </label>
                                                 <div className="relative">
-                                                    <input 
-                                                        type={showPassword ? "text" : "password"}
-                                                        value={pwdData.password_confirmation}
-                                                        onChange={e => setPwdData('password_confirmation', e.target.value)}
+                                                    <input
+                                                        type={
+                                                            showPassword
+                                                                ? "text"
+                                                                : "password"
+                                                        }
+                                                        value={
+                                                            pwdData.password_confirmation
+                                                        }
+                                                        onChange={(e) =>
+                                                            setPwdData(
+                                                                "password_confirmation",
+                                                                e.target.value,
+                                                            )
+                                                        }
                                                         className="w-full pl-4 pr-12 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
                                                         placeholder="Ulangi password baru"
                                                     />
@@ -3676,8 +5423,16 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                             </div>
 
                                             <div className="pt-2 flex justify-end">
-                                                <button disabled={processingPwd} type="submit" className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-md hover:bg-slate-800 transition-colors disabled:opacity-50 flex items-center space-x-2">
-                                                    {processingPwd ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                                                <button
+                                                    disabled={processingPwd}
+                                                    type="submit"
+                                                    className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold shadow-md hover:bg-slate-800 transition-colors disabled:opacity-50 flex items-center space-x-2"
+                                                >
+                                                    {processingPwd ? (
+                                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                                    ) : (
+                                                        <Lock className="w-4 h-4" />
+                                                    )}
                                                     <span>Update Password</span>
                                                 </button>
                                             </div>
@@ -3688,55 +5443,135 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
                                         <div className="p-5 sm:p-6 border-b border-slate-100 flex items-center space-x-3">
                                             <Monitor className="w-6 h-6 text-slate-400" />
-                                            <h3 className="font-bold text-slate-800">Sesi & Perangkat Aktif</h3>
+                                            <h3 className="font-bold text-slate-800">
+                                                Sesi & Perangkat Aktif
+                                            </h3>
                                         </div>
                                         <div className="p-5 sm:p-6 divide-y divide-slate-100">
-                                            {activeSessions && activeSessions.length > 0 ? activeSessions.map((session, i) => (
-                                                <div key={i} className="py-4 first:pt-0 last:pb-0 flex items-start justify-between">
-                                                    <div className="flex space-x-4">
-                                                        <div className="mt-1">
-                                                            {session.user_agent?.toLowerCase().includes('mobile') ? (
-                                                                <Smartphone className="w-6 h-6 text-slate-400" />
-                                                            ) : (
-                                                                <Monitor className="w-6 h-6 text-slate-400" />
-                                                            )}
-                                                        </div>
-                                                        <div>
-                                                            <div className="flex items-center space-x-2">
-                                                                <h4 className="text-sm font-bold text-slate-800">
-                                                                    {(() => {
-                                                                        const agent = session.user_agent || "";
-                                                                        let browser = "Browser";
-                                                                        let os = "OS";
-                                                                        if (agent.includes("Chrome")) browser = "Google Chrome";
-                                                                        else if (agent.includes("Firefox")) browser = "Firefox";
-                                                                        else if (agent.includes("Safari")) browser = "Safari";
-                                                                        
-                                                                        if (agent.includes("Mac")) os = "Mac";
-                                                                        else if (agent.includes("Windows")) os = "Windows";
-                                                                        else if (agent.includes("Linux")) os = "Linux";
-                                                                        else if (agent.includes("Android")) os = "Android";
-                                                                        else if (agent.includes("iPhone")) os = "iPhone";
-                                                                        
-                                                                        return `${os} - ${browser}`;
-                                                                    })()}
-                                                                </h4>
-                                                                {session.is_current && (
-                                                                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase rounded-md">Saat Ini</span>
-                                                                )}
+                                            {activeSessions &&
+                                            activeSessions.length > 0 ? (
+                                                activeSessions.map(
+                                                    (session, i) => (
+                                                        <div
+                                                            key={i}
+                                                            className="py-4 first:pt-0 last:pb-0 flex items-start justify-between"
+                                                        >
+                                                            <div className="flex space-x-4">
+                                                                <div className="mt-1">
+                                                                    {session.user_agent
+                                                                        ?.toLowerCase()
+                                                                        .includes(
+                                                                            "mobile",
+                                                                        ) ? (
+                                                                        <Smartphone className="w-6 h-6 text-slate-400" />
+                                                                    ) : (
+                                                                        <Monitor className="w-6 h-6 text-slate-400" />
+                                                                    )}
+                                                                </div>
+                                                                <div>
+                                                                    <div className="flex items-center space-x-2">
+                                                                        <h4 className="text-sm font-bold text-slate-800">
+                                                                            {(() => {
+                                                                                const agent =
+                                                                                    session.user_agent ||
+                                                                                    "";
+                                                                                let browser =
+                                                                                    "Browser";
+                                                                                let os =
+                                                                                    "OS";
+                                                                                if (
+                                                                                    agent.includes(
+                                                                                        "Chrome",
+                                                                                    )
+                                                                                )
+                                                                                    browser =
+                                                                                        "Google Chrome";
+                                                                                else if (
+                                                                                    agent.includes(
+                                                                                        "Firefox",
+                                                                                    )
+                                                                                )
+                                                                                    browser =
+                                                                                        "Firefox";
+                                                                                else if (
+                                                                                    agent.includes(
+                                                                                        "Safari",
+                                                                                    )
+                                                                                )
+                                                                                    browser =
+                                                                                        "Safari";
+
+                                                                                if (
+                                                                                    agent.includes(
+                                                                                        "Mac",
+                                                                                    )
+                                                                                )
+                                                                                    os =
+                                                                                        "Mac";
+                                                                                else if (
+                                                                                    agent.includes(
+                                                                                        "Windows",
+                                                                                    )
+                                                                                )
+                                                                                    os =
+                                                                                        "Windows";
+                                                                                else if (
+                                                                                    agent.includes(
+                                                                                        "Linux",
+                                                                                    )
+                                                                                )
+                                                                                    os =
+                                                                                        "Linux";
+                                                                                else if (
+                                                                                    agent.includes(
+                                                                                        "Android",
+                                                                                    )
+                                                                                )
+                                                                                    os =
+                                                                                        "Android";
+                                                                                else if (
+                                                                                    agent.includes(
+                                                                                        "iPhone",
+                                                                                    )
+                                                                                )
+                                                                                    os =
+                                                                                        "iPhone";
+
+                                                                                return `${os} - ${browser}`;
+                                                                            })()}
+                                                                        </h4>
+                                                                        {session.is_current && (
+                                                                            <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase rounded-md">
+                                                                                Saat
+                                                                                Ini
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <p className="text-xs text-slate-500 mt-1">
+                                                                        {
+                                                                            session.ip_address
+                                                                        }{" "}
+                                                                        • Aktif{" "}
+                                                                        {
+                                                                            session.last_activity
+                                                                        }
+                                                                    </p>
+                                                                </div>
                                                             </div>
-                                                            <p className="text-xs text-slate-500 mt-1">{session.ip_address} • Aktif {session.last_activity}</p>
                                                         </div>
-                                                    </div>
-                                                </div>
-                                            )) : (
-                                                <p className="text-sm text-slate-500 italic">Informasi sesi tidak tersedia (driver session bukan database).</p>
+                                                    ),
+                                                )
+                                            ) : (
+                                                <p className="text-sm text-slate-500 italic">
+                                                    Informasi sesi tidak
+                                                    tersedia (driver session
+                                                    bukan database).
+                                                </p>
                                             )}
                                         </div>
                                     </div>
                                 </div>
                             )}
-
 
                             {/* TAB 6: ANGGOTA KELUARGA (SETTINGS) */}
                             {activeSettingsTab === "anggota" && (
@@ -3776,402 +5611,620 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                             Manajemen Anggota Keluarga
                                         </h3>
                                         <p className="text-xs text-slate-500">
-                                            Kelola anggota keluarga beserta hak akses masing-masing pengguna.
+                                            Kelola anggota keluarga beserta hak
+                                            akses masing-masing pengguna.
                                         </p>
                                     </div>
 
                                     {/* Daftar Anggota */}
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                                    {members.map((m) => (
-                                        <div
-                                            key={m.id}
-                                            className="p-5 rounded-2xl border border-slate-100 bg-white shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.1)] hover:border-blue-100 transition-all duration-300 group flex flex-col justify-between"
-                                        >
-                                            <div className="flex items-center space-x-4 mb-5">
+                                        {members.map((m) => (
+                                            <div
+                                                key={m.id}
+                                                className="p-5 rounded-2xl border border-slate-100 bg-white shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_20px_-4px_rgba(0,0,0,0.1)] hover:border-blue-100 transition-all duration-300 group flex flex-col justify-between"
+                                            >
+                                                <div className="flex items-center space-x-4 mb-5">
+                                                    <div
+                                                        className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white shadow-sm ${m.avatarColor}`}
+                                                    >
+                                                        {m.name.charAt(0)}
+                                                    </div>
+                                                    <div>
+                                                        <h4 className="font-bold text-sm text-slate-900 line-clamp-1">
+                                                            {m.name}
+                                                        </h4>
+                                                        <span className="text-xs text-slate-500 block mt-0.5">
+                                                            {m.role}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-auto">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Shield className="w-4 h-4 text-blue-500" />
+                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                                            {
+                                                                (
+                                                                    m.permissions ||
+                                                                    []
+                                                                ).length
+                                                            }{" "}
+                                                            Hak Akses
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center space-x-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
+                                                        <button
+                                                            onClick={() =>
+                                                                setSelectedMemberForDetail(
+                                                                    m,
+                                                                )
+                                                            }
+                                                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all"
+                                                            title="Detail"
+                                                        >
+                                                            <Eye className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setNewMember({
+                                                                    id: m.id,
+                                                                    name: m.name,
+                                                                    role: m.role,
+                                                                    permissions:
+                                                                        [
+                                                                            ...m.permissions,
+                                                                        ],
+                                                                });
+                                                                setShowAddMemberModal(
+                                                                    true,
+                                                                );
+                                                            }}
+                                                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all"
+                                                            title="Edit"
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() =>
+                                                                handleDeleteMember(
+                                                                    m.id,
+                                                                )
+                                                            }
+                                                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all"
+                                                            title="Hapus"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Modal Detail Anggota */}
+                                    {selectedMemberForDetail &&
+                                        createPortal(
+                                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto w-full h-full min-h-screen">
                                                 <div
-                                                    className={`w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold text-white shadow-sm ${m.avatarColor}`}
-                                                >
-                                                    {m.name.charAt(0)}
-                                                </div>
-                                                <div>
-                                                    <h4 className="font-bold text-sm text-slate-900 line-clamp-1">
-                                                        {m.name}
-                                                    </h4>
-                                                    <span className="text-xs text-slate-500 block mt-0.5">
-                                                        {m.role}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-auto">
-                                                <div className="flex items-center gap-1.5">
-                                                    <Shield className="w-4 h-4 text-blue-500" />
-                                                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                                        {(m.permissions || []).length} Hak Akses
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center space-x-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all">
-                                                    <button 
-                                                        onClick={() => setSelectedMemberForDetail(m)}
-                                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all"
-                                                        title="Detail"
-                                                    >
-                                                        <Eye className="w-4 h-4" />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => {
-                                                            setNewMember({
-                                                                id: m.id,
-                                                                name: m.name,
-                                                                role: m.role,
-                                                                permissions: [...m.permissions]
-                                                            });
-                                                            setShowAddMemberModal(true);
-                                                        }}
-                                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all"
-                                                        title="Edit"
-                                                    >
-                                                        <Edit className="w-4 h-4" />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => handleDeleteMember(m.id)}
-                                                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-white border border-slate-200 text-slate-400 hover:text-rose-600 hover:border-rose-200 hover:bg-rose-50 transition-all"
-                                                        title="Hapus"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-
-
-                            {/* Modal Detail Anggota */}
-                            {selectedMemberForDetail && createPortal(
-                                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fadeIn">
-                                    <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl p-6 animate-scaleUp">
-                                        <div className="flex justify-between items-start mb-6">
-                                            <div className="flex items-center space-x-4">
-                                                <div className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold text-white shadow-sm ${selectedMemberForDetail.avatarColor}`}>
-                                                    {selectedMemberForDetail.name.charAt(0)}
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-bold text-lg text-slate-900">{selectedMemberForDetail.name}</h3>
-                                                    <p className="text-sm text-slate-500">{selectedMemberForDetail.role}</p>
-                                                    <p className="text-xs text-slate-400 mt-0.5">{selectedMemberForDetail.email}</p>
-                                                </div>
-                                            </div>
-                                            <button onClick={() => setSelectedMemberForDetail(null)} className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-xl transition-colors">
-                                                <X className="w-5 h-5" />
-                                            </button>
-                                        </div>
-                                        
-                                        <h4 className="font-bold text-sm text-slate-900 mb-3 flex items-center gap-2">
-                                            <Shield className="w-4 h-4 text-blue-500" />
-                                            Hak Akses Aktif:
-                                        </h4>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto pr-1">
-                                            {selectedMemberForDetail.permissions.length === 0 ? (
-                                                <p className="text-sm text-slate-500 italic col-span-1 sm:col-span-2">Tidak ada hak akses.</p>
-                                            ) : (
-                                                selectedMemberForDetail.permissions.map(permKey => {
-                                                    const permObj = AVAILABLE_PERMISSIONS.find(p => p.key === permKey);
-                                                    return (
-                                                        <div key={permKey} className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                                                            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                                                    className="fixed inset-0 w-full h-full bg-slate-900/60 backdrop-blur-md transition-opacity"
+                                                    onClick={() =>
+                                                        setSelectedMemberForDetail(
+                                                            null,
+                                                        )
+                                                    }
+                                                />
+                                                <div className="relative bg-white rounded-3xl max-w-md w-full shadow-2xl p-6 animate-scaleUp z-10 border border-slate-100/50">
+                                                    <div className="flex justify-between items-start mb-6">
+                                                        <div className="flex items-center space-x-4">
+                                                            <div
+                                                                className={`w-14 h-14 rounded-full flex items-center justify-center text-xl font-bold text-white shadow-sm ${selectedMemberForDetail.avatarColor}`}
+                                                            >
+                                                                {selectedMemberForDetail.name.charAt(
+                                                                    0,
+                                                                )}
+                                                            </div>
                                                             <div>
-                                                                <p className="text-sm font-bold text-slate-800">{permObj?.label || permKey}</p>
-                                                                <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">{permObj?.desc}</p>
+                                                                <h3 className="font-bold text-lg text-slate-900">
+                                                                    {
+                                                                        selectedMemberForDetail.name
+                                                                    }
+                                                                </h3>
+                                                                <p className="text-sm text-slate-500">
+                                                                    {
+                                                                        selectedMemberForDetail.role
+                                                                    }
+                                                                </p>
+                                                                <p className="text-xs text-slate-400 mt-0.5">
+                                                                    {
+                                                                        selectedMemberForDetail.email
+                                                                    }
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() =>
+                                                                setSelectedMemberForDetail(
+                                                                    null,
+                                                                )
+                                                            }
+                                                            className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-xl transition-colors"
+                                                        >
+                                                            <X className="w-5 h-5" />
+                                                        </button>
+                                                    </div>
+
+                                                    <h4 className="font-bold text-sm text-slate-900 mb-3 flex items-center gap-2">
+                                                        <Shield className="w-4 h-4 text-blue-500" />
+                                                        Hak Akses Aktif:
+                                                    </h4>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto pr-1">
+                                                        {selectedMemberForDetail
+                                                            .permissions
+                                                            .length === 0 ? (
+                                                            <p className="text-sm text-slate-500 italic col-span-1 sm:col-span-2">
+                                                                Tidak ada hak
+                                                                akses.
+                                                            </p>
+                                                        ) : (
+                                                            selectedMemberForDetail.permissions.map(
+                                                                (permKey) => {
+                                                                    const permObj =
+                                                                        AVAILABLE_PERMISSIONS.find(
+                                                                            (
+                                                                                p,
+                                                                            ) =>
+                                                                                p.key ===
+                                                                                permKey,
+                                                                        );
+                                                                    return (
+                                                                        <div
+                                                                            key={
+                                                                                permKey
+                                                                            }
+                                                                            className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100"
+                                                                        >
+                                                                            <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
+                                                                            <div>
+                                                                                <p className="text-sm font-bold text-slate-800">
+                                                                                    {permObj?.label ||
+                                                                                        permKey}
+                                                                                </p>
+                                                                                <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">
+                                                                                    {
+                                                                                        permObj?.desc
+                                                                                    }
+                                                                                </p>
+                                                                            </div>
+                                                                        </div>
+                                                                    );
+                                                                },
+                                                            )
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>,
+                                            document.body,
+                                        )}
+
+                                    {/* Modal Tambah/Edit Anggota Baru */}
+                                    {showAddMemberModal &&
+                                        createPortal(
+                                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto w-full h-full min-h-screen">
+                                                <div
+                                                    className="fixed inset-0 w-full h-full bg-slate-900/60 backdrop-blur-md transition-opacity"
+                                                    onClick={() =>
+                                                        setShowAddMemberModal(
+                                                            false,
+                                                        )
+                                                    }
+                                                />
+                                                <div className="relative bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl space-y-5 animate-scaleUp z-10 border border-slate-100/50 max-h-[90vh] overflow-y-auto">
+                                                    <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="p-2 bg-blue-50 rounded-xl">
+                                                                <UserPlus className="w-5 h-5 text-blue-600" />
+                                                            </div>
+                                                            <div>
+                                                                <h3 className="font-bold text-slate-900 text-base">
+                                                                    {newMember.id
+                                                                        ? "Edit Data Anggota"
+                                                                        : "Tambah Anggota Baru"}
+                                                                </h3>
+                                                                <p className="text-[11px] text-slate-400">
+                                                                    {newMember.id
+                                                                        ? "Perbarui informasi dan hak akses anggota"
+                                                                        : "Daftarkan anggota keluarga baru beserta hak aksesnya"}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            onClick={() =>
+                                                                setShowAddMemberModal(
+                                                                    false,
+                                                                )
+                                                            }
+                                                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+
+                                                    <form
+                                                        onSubmit={
+                                                            handleAddMember
+                                                        }
+                                                        className="space-y-5"
+                                                    >
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
+                                                                Nama Lengkap
+                                                            </label>
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Contoh: Adik (Doni)"
+                                                                value={
+                                                                    newMember.name
+                                                                }
+                                                                onChange={(e) =>
+                                                                    setNewMember(
+                                                                        {
+                                                                            ...newMember,
+                                                                            name: e
+                                                                                .target
+                                                                                .value,
+                                                                        },
+                                                                    )
+                                                                }
+                                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                                                            />
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
+                                                                Peran
+                                                            </label>
+                                                            <select
+                                                                value={
+                                                                    newMember.role
+                                                                }
+                                                                onChange={(e) =>
+                                                                    handleNewMemberRoleChange(
+                                                                        e.target
+                                                                            .value,
+                                                                    )
+                                                                }
+                                                                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
+                                                            >
+                                                                <option value="Anggota">
+                                                                    Anggota
+                                                                    Keluarga
+                                                                </option>
+                                                                <option value="Bendahara">
+                                                                    Bendahara
+                                                                </option>
+                                                                <option value="Administrator">
+                                                                    Administrator
+                                                                </option>
+                                                            </select>
+                                                        </div>
+
+                                                        {/* Permission Checklist */}
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-slate-600 uppercase mb-3 flex items-center gap-1.5">
+                                                                <Shield className="w-3.5 h-3.5 text-blue-600" />{" "}
+                                                                Hak Akses &
+                                                                Permission
+                                                            </label>
+                                                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto">
+                                                                {AVAILABLE_PERMISSIONS.map(
+                                                                    (perm) => {
+                                                                        const isChecked =
+                                                                            newMember.permissions.includes(
+                                                                                perm.key,
+                                                                            );
+                                                                        return (
+                                                                            <label
+                                                                                key={
+                                                                                    perm.key
+                                                                                }
+                                                                                className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                                                                                    isChecked
+                                                                                        ? "bg-blue-50/70"
+                                                                                        : "hover:bg-white"
+                                                                                }`}
+                                                                            >
+                                                                                <input
+                                                                                    type="checkbox"
+                                                                                    checked={
+                                                                                        isChecked
+                                                                                    }
+                                                                                    onChange={() =>
+                                                                                        handleTogglePermission(
+                                                                                            perm.key,
+                                                                                        )
+                                                                                    }
+                                                                                    className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+                                                                                />
+                                                                                <div className="flex-1 min-w-0">
+                                                                                    <p
+                                                                                        className={`text-xs font-bold ${isChecked ? "text-blue-700" : "text-slate-600"}`}
+                                                                                    >
+                                                                                        {
+                                                                                            perm.label
+                                                                                        }
+                                                                                    </p>
+                                                                                    <p className="text-[10px] text-slate-400 mt-0.5">
+                                                                                        {
+                                                                                            perm.desc
+                                                                                        }
+                                                                                    </p>
+                                                                                </div>
+                                                                            </label>
+                                                                        );
+                                                                    },
+                                                                )}
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    setShowAddMemberModal(
+                                                                        false,
+                                                                    )
+                                                                }
+                                                                className="px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all"
+                                                            >
+                                                                Batal
+                                                            </button>
+                                                            <button
+                                                                type="submit"
+                                                                className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-100 transition-all flex items-center gap-2"
+                                                            >
+                                                                <UserPlus className="w-4 h-4" />
+                                                                Daftarkan
+                                                                Anggota
+                                                            </button>
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                            </div>,
+                                            document.body,
+                                        )}
+                                </div>
+                            )}
+
+                            {/* TAB LOG AKTIVITAS (SETTINGS) */}
+                            {activeSettingsTab === "logs" && (
+                                <div className="space-y-6 animate-fadeIn">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                        <button
+                                            onClick={() =>
+                                                setActiveSettingsTab("profile")
+                                            }
+                                            className="flex items-center space-x-2 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors w-fit"
+                                        >
+                                            <ArrowLeft className="w-4 h-4" />
+                                            <span>Kembali ke Profile</span>
+                                        </button>
+                                        <div className="p-2 bg-blue-50 text-blue-600 rounded-xl hidden sm:flex">
+                                            <Activity className="w-5 h-5" />
+                                        </div>
+                                    </div>
+
+                                    <div className="mb-4 pt-2 border-b border-slate-100 pb-5">
+                                        <h3 className="font-bold text-lg text-slate-900 mb-1">
+                                            Log Aktivitas Sistem
+                                        </h3>
+                                        <p className="text-xs text-slate-500">
+                                            Merekam seluruh aktivitas pengguna
+                                            di dalam aplikasi untuk transparansi
+                                            dan keamanan.
+                                        </p>
+                                    </div>
+
+                                    <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
+                                        <div className="divide-y divide-slate-100">
+                                            {activityLogs.length === 0 &&
+                                            !isLoadingLogs ? (
+                                                <div className="text-center py-10">
+                                                    <Activity className="w-8 h-8 text-slate-200 mx-auto mb-3" />
+                                                    <p className="text-slate-500 text-sm font-bold">
+                                                        Belum ada aktivitas
+                                                        terekam.
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                activityLogs.map((log) => {
+                                                    const logDate = new Date(
+                                                        log.date ||
+                                                            log.created_at,
+                                                    );
+                                                    const isToday =
+                                                        logDate.toDateString() ===
+                                                        new Date().toDateString();
+                                                    const timeString =
+                                                        logDate.toLocaleTimeString(
+                                                            "id-ID",
+                                                            {
+                                                                hour: "2-digit",
+                                                                minute: "2-digit",
+                                                            },
+                                                        );
+                                                    const dateString =
+                                                        logDate.toLocaleDateString(
+                                                            "id-ID",
+                                                            {
+                                                                day: "numeric",
+                                                                month: "short",
+                                                                year: "numeric",
+                                                            },
+                                                        );
+
+                                                    return (
+                                                        <div
+                                                            key={log.id}
+                                                            className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between gap-4"
+                                                        >
+                                                            <div className="flex items-center gap-4">
+                                                                <div
+                                                                    className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm ${log.color}`}
+                                                                >
+                                                                    {log.icon ===
+                                                                        "User" && (
+                                                                        <User className="w-4 h-4" />
+                                                                    )}
+                                                                    {log.icon ===
+                                                                        "LogOut" && (
+                                                                        <LogOut className="w-4 h-4" />
+                                                                    )}
+                                                                    {log.icon ===
+                                                                        "PlusCircle" && (
+                                                                        <PlusCircle className="w-4 h-4" />
+                                                                    )}
+                                                                    {log.icon ===
+                                                                        "Edit" && (
+                                                                        <Edit className="w-4 h-4" />
+                                                                    )}
+                                                                    {log.icon ===
+                                                                        "Trash2" && (
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    )}
+                                                                    {log.icon ===
+                                                                        "Tag" && (
+                                                                        <Tag className="w-4 h-4" />
+                                                                    )}
+                                                                    {log.icon ===
+                                                                        "UserPlus" && (
+                                                                        <UserPlus className="w-4 h-4" />
+                                                                    )}
+                                                                    {log.icon ===
+                                                                        "UserMinus" && (
+                                                                        <UserMinus className="w-4 h-4" />
+                                                                    )}
+                                                                    {log.icon ===
+                                                                        "Activity" && (
+                                                                        <Activity className="w-4 h-4" />
+                                                                    )}
+                                                                </div>
+                                                                <div>
+                                                                    <h4 className="text-sm font-bold text-slate-900 line-clamp-1">
+                                                                        {
+                                                                            log.action
+                                                                        }
+                                                                    </h4>
+                                                                    <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">
+                                                                        {
+                                                                            log.description
+                                                                        }
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="text-right shrink-0">
+                                                                <div className="text-xs font-bold text-slate-700">
+                                                                    {log.user
+                                                                        ?.name ||
+                                                                        "Sistem"}
+                                                                </div>
+                                                                <div className="text-[10px] text-slate-400 mt-1">
+                                                                    {isToday
+                                                                        ? `Hari ini, ${timeString}`
+                                                                        : `${dateString}`}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     );
                                                 })
                                             )}
                                         </div>
+
+                                        {/* Pagination Controls */}
+                                        {activityLogs.length > 0 && (
+                                            <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-xs gap-3">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="text-slate-500 font-medium">
+                                                        Tampilkan:
+                                                    </span>
+                                                    <select
+                                                        value={logsPerPage}
+                                                        onChange={(e) =>
+                                                            setLogsPerPage(
+                                                                Number(
+                                                                    e.target
+                                                                        .value,
+                                                                ),
+                                                            )
+                                                        }
+                                                        className="rounded-xl border border-slate-200 text-xs font-bold text-slate-700 bg-white pl-2.5 pr-8 py-1 focus:ring-blue-500 focus:border-blue-500 cursor-pointer transition-all shadow-sm"
+                                                    >
+                                                        <option value={5}>
+                                                            5
+                                                        </option>
+                                                        <option value={10}>
+                                                            10
+                                                        </option>
+                                                        <option value={15}>
+                                                            15
+                                                        </option>
+                                                        <option value={20}>
+                                                            20
+                                                        </option>
+                                                        <option value={50}>
+                                                            50
+                                                        </option>
+                                                    </select>
+                                                    <span className="text-slate-500 font-medium">
+                                                        Menampilkan {logsFrom} -{" "}
+                                                        {logsTo} dari{" "}
+                                                        {logsTotal} log
+                                                    </span>
+                                                </div>
+
+                                                <div className="flex items-center gap-2">
+                                                    <button
+                                                        disabled={
+                                                            logsPage === 1 ||
+                                                            isLoadingLogs
+                                                        }
+                                                        onClick={() =>
+                                                            fetchLogs(
+                                                                logsPage - 1,
+                                                            )
+                                                        }
+                                                        className="px-3 py-1.5 border border-slate-200 hover:border-slate-350 hover:bg-slate-100 rounded-xl disabled:opacity-40 disabled:hover:bg-transparent transition-all font-bold text-slate-600 shadow-sm bg-white"
+                                                    >
+                                                        Sebelumnya
+                                                    </button>
+                                                    <span className="font-bold text-slate-700 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm">
+                                                        {logsPage} /{" "}
+                                                        {logsLastPage}
+                                                    </span>
+                                                    <button
+                                                        disabled={
+                                                            logsPage ===
+                                                                logsLastPage ||
+                                                            isLoadingLogs
+                                                        }
+                                                        onClick={() =>
+                                                            fetchLogs(
+                                                                logsPage + 1,
+                                                            )
+                                                        }
+                                                        className="px-3 py-1.5 border border-slate-200 hover:border-slate-350 hover:bg-slate-100 rounded-xl disabled:opacity-40 disabled:hover:bg-transparent transition-all font-bold text-slate-600 shadow-sm bg-white"
+                                                    >
+                                                        Selanjutnya
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
-                            , document.body)}
-
-                            {/* Modal Tambah/Edit Anggota Baru */}
-                            {showAddMemberModal && createPortal(
-                                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                                    <div className="bg-white rounded-2xl border border-slate-150 max-w-3xl w-full p-6 shadow-xl space-y-5 animate-scaleUp max-h-[90vh] overflow-y-auto">
-                                        <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="p-2 bg-blue-50 rounded-xl">
-                                                    <UserPlus className="w-5 h-5 text-blue-600" />
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-bold text-slate-900 text-base">
-                                                        {newMember.id ? "Edit Data Anggota" : "Tambah Anggota Baru"}
-                                                    </h3>
-                                                    <p className="text-[11px] text-slate-400">
-                                                        {newMember.id 
-                                                            ? "Perbarui informasi dan hak akses anggota" 
-                                                            : "Daftarkan anggota keluarga baru beserta hak aksesnya"}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                            <button
-                                                onClick={() =>
-                                                    setShowAddMemberModal(false)
-                                                }
-                                                className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-
-                                        <form
-                                            onSubmit={handleAddMember}
-                                            className="space-y-5"
-                                        >
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
-                                                    Nama Lengkap
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Contoh: Adik (Doni)"
-                                                    value={newMember.name}
-                                                    onChange={(e) =>
-                                                        setNewMember({
-                                                            ...newMember,
-                                                            name: e.target
-                                                                .value,
-                                                        })
-                                                    }
-                                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                                                />
-                                            </div>
-
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-600 uppercase mb-1.5">
-                                                    Peran
-                                                </label>
-                                                <select
-                                                    value={newMember.role}
-                                                    onChange={(e) =>
-                                                        handleNewMemberRoleChange(
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                                                >
-                                                    <option value="Anggota">
-                                                        Anggota Keluarga
-                                                    </option>
-                                                    <option value="Bendahara">
-                                                        Bendahara
-                                                    </option>
-                                                    <option value="Administrator">
-                                                        Administrator
-                                                    </option>
-                                                </select>
-                                            </div>
-
-                                            {/* Permission Checklist */}
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-600 uppercase mb-3 flex items-center gap-1.5">
-                                                    <Shield className="w-3.5 h-3.5 text-blue-600" />{" "}
-                                                    Hak Akses & Permission
-                                                </label>
-                                                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto">
-                                                    {AVAILABLE_PERMISSIONS.map(
-                                                        (perm) => {
-                                                            const isChecked =
-                                                                newMember.permissions.includes(
-                                                                    perm.key,
-                                                                );
-                                                            return (
-                                                                <label
-                                                                    key={
-                                                                        perm.key
-                                                                    }
-                                                                    className={`flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                                                                        isChecked
-                                                                            ? "bg-blue-50/70"
-                                                                            : "hover:bg-white"
-                                                                    }`}
-                                                                >
-                                                                    <input
-                                                                        type="checkbox"
-                                                                        checked={
-                                                                            isChecked
-                                                                        }
-                                                                        onChange={() =>
-                                                                            handleTogglePermission(
-                                                                                perm.key,
-                                                                            )
-                                                                        }
-                                                                        className="mt-0.5 w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
-                                                                    />
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <p
-                                                                            className={`text-xs font-bold ${isChecked ? "text-blue-700" : "text-slate-600"}`}
-                                                                        >
-                                                                            {
-                                                                                perm.label
-                                                                            }
-                                                                        </p>
-                                                                        <p className="text-[10px] text-slate-400 mt-0.5">
-                                                                            {
-                                                                                perm.desc
-                                                                            }
-                                                                        </p>
-                                                                    </div>
-                                                                </label>
-                                                            );
-                                                        },
-                                                    )}
-                                                </div>
-                                            </div>
-
-                                            <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setShowAddMemberModal(
-                                                            false,
-                                                        )
-                                                    }
-                                                    className="px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all"
-                                                >
-                                                    Batal
-                                                </button>
-                                                <button
-                                                    type="submit"
-                                                    className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-100 transition-all flex items-center gap-2"
-                                                >
-                                                    <UserPlus className="w-4 h-4" />
-                                                    Daftarkan Anggota
-                                                </button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                </div>
-                            , document.body)}
+                            )}
                         </div>
                     )}
 
-                    {/* TAB LOG AKTIVITAS (SETTINGS) */}
-                    {activeSettingsTab === "logs" && (
-                        <div className="space-y-6 animate-fadeIn">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                <button
-                                    onClick={() => setActiveSettingsTab("profile")}
-                                    className="flex items-center space-x-2 text-sm font-bold text-slate-500 hover:text-slate-800 transition-colors w-fit"
-                                >
-                                    <ArrowLeft className="w-4 h-4" />
-                                    <span>Kembali ke Profile</span>
-                                </button>
-                                <div className="p-2 bg-blue-50 text-blue-600 rounded-xl hidden sm:flex">
-                                    <Activity className="w-5 h-5" />
-                                </div>
-                            </div>
-                            
-                            <div className="mb-4 pt-2 border-b border-slate-100 pb-5">
-                                <h3 className="font-bold text-lg text-slate-900 mb-1">
-                                    Log Aktivitas Sistem
-                                </h3>
-                                <p className="text-xs text-slate-500">
-                                    Merekam seluruh aktivitas pengguna di dalam aplikasi untuk transparansi dan keamanan.
-                                </p>
-                            </div>
-
-                            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-[0_2px_10px_-4px_rgba(0,0,0,0.05)]">
-                                <div className="divide-y divide-slate-100">
-                                    {activityLogs.length === 0 && !isLoadingLogs ? (
-                                        <div className="text-center py-10">
-                                            <Activity className="w-8 h-8 text-slate-200 mx-auto mb-3" />
-                                            <p className="text-slate-500 text-sm font-bold">Belum ada aktivitas terekam.</p>
-                                        </div>
-                                    ) : (
-                                        activityLogs.map((log) => {
-                                            const logDate = new Date(log.date || log.created_at);
-                                            const isToday = logDate.toDateString() === new Date().toDateString();
-                                            const timeString = logDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
-                                            const dateString = logDate.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-
-                                            return (
-                                                <div key={log.id} className="p-4 hover:bg-slate-50 transition-colors flex items-center justify-between gap-4">
-                                                    <div className="flex items-center gap-4">
-                                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 shadow-sm ${log.color}`}>
-                                                            {log.icon === 'User' && <User className="w-4 h-4" />}
-                                                            {log.icon === 'LogOut' && <LogOut className="w-4 h-4" />}
-                                                            {log.icon === 'PlusCircle' && <PlusCircle className="w-4 h-4" />}
-                                                            {log.icon === 'Edit' && <Edit className="w-4 h-4" />}
-                                                            {log.icon === 'Trash2' && <Trash2 className="w-4 h-4" />}
-                                                            {log.icon === 'Tag' && <Tag className="w-4 h-4" />}
-                                                            {log.icon === 'UserPlus' && <UserPlus className="w-4 h-4" />}
-                                                            {log.icon === 'UserMinus' && <UserMinus className="w-4 h-4" />}
-                                                            {log.icon === 'Activity' && <Activity className="w-4 h-4" />}
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="text-sm font-bold text-slate-900 line-clamp-1">{log.action}</h4>
-                                                            <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">{log.description}</p>
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-right shrink-0">
-                                                        <div className="text-xs font-bold text-slate-700">{log.user?.name || 'Sistem'}</div>
-                                                        <div className="text-[10px] text-slate-400 mt-1">{isToday ? `Hari ini, ${timeString}` : `${dateString}`}</div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                                
-                                {/* Pagination Controls */}
-                                {activityLogs.length > 0 && (
-                                    <div className="p-4 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between text-xs gap-3">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-slate-500 font-medium">Tampilkan:</span>
-                                            <select
-                                                value={logsPerPage}
-                                                onChange={(e) => setLogsPerPage(Number(e.target.value))}
-                                                className="rounded-xl border border-slate-200 text-xs font-bold text-slate-700 bg-white pl-2.5 pr-8 py-1 focus:ring-blue-500 focus:border-blue-500 cursor-pointer transition-all shadow-sm"
-                                            >
-                                                <option value={5}>5</option>
-                                                <option value={10}>10</option>
-                                                <option value={15}>15</option>
-                                                <option value={20}>20</option>
-                                                <option value={50}>50</option>
-                                            </select>
-                                            <span className="text-slate-500 font-medium">
-                                                Menampilkan {logsFrom} - {logsTo} dari {logsTotal} log
-                                            </span>
-                                        </div>
-                                        
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                disabled={logsPage === 1 || isLoadingLogs}
-                                                onClick={() => fetchLogs(logsPage - 1)}
-                                                className="px-3 py-1.5 border border-slate-200 hover:border-slate-350 hover:bg-slate-100 rounded-xl disabled:opacity-40 disabled:hover:bg-transparent transition-all font-bold text-slate-600 shadow-sm bg-white"
-                                            >
-                                                Sebelumnya
-                                            </button>
-                                            <span className="font-bold text-slate-700 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm">
-                                                {logsPage} / {logsLastPage}
-                                            </span>
-                                            <button
-                                                disabled={logsPage === logsLastPage || isLoadingLogs}
-                                                onClick={() => fetchLogs(logsPage + 1)}
-                                                className="px-3 py-1.5 border border-slate-200 hover:border-slate-350 hover:bg-slate-100 rounded-xl disabled:opacity-40 disabled:hover:bg-transparent transition-all font-bold text-slate-600 shadow-sm bg-white"
-                                            >
-                                                Selanjutnya
-                                            </button>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* TAB 7: IMPORT DATA */}
+                    {/* TAB 7: IMPORT DATA */}
                     {activeTab === "import" && (
                         <div className="space-y-6 animate-fadeIn max-w-5xl mx-auto">
                             {/* Card 1: Dokumentasi & Unduh Template */}
@@ -4185,32 +6238,62 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                             Panduan Import Transaksi Pengeluaran
                                         </h3>
                                         <p className="text-sm text-slate-500 leading-relaxed">
-                                            Anda dapat mencatat banyak transaksi pengeluaran sekaligus dengan mengunggah file spreadsheet berformat `.csv`. Pastikan berkas Anda mengikuti struktur kolom berikut agar dapat diproses tanpa error.
+                                            Anda dapat mencatat banyak transaksi
+                                            pengeluaran sekaligus dengan
+                                            mengunggah file spreadsheet
+                                            berformat `.csv`. Pastikan berkas
+                                            Anda mengikuti struktur kolom
+                                            berikut agar dapat diproses tanpa
+                                            error.
                                         </p>
                                         <div className="grid grid-cols-2 md:grid-cols-3 gap-3 pt-2 text-xs">
                                             <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                                <span className="font-bold text-slate-700 block">Tanggal</span>
-                                                <span className="text-slate-400 text-[10px]">Format: YYYY-MM-DD</span>
+                                                <span className="font-bold text-slate-700 block">
+                                                    Tanggal
+                                                </span>
+                                                <span className="text-slate-400 text-[10px]">
+                                                    Format: YYYY-MM-DD
+                                                </span>
                                             </div>
                                             <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                                <span className="font-bold text-slate-700 block">Deskripsi</span>
-                                                <span className="text-slate-400 text-[10px]">Nama/keterangan belanja</span>
+                                                <span className="font-bold text-slate-700 block">
+                                                    Deskripsi
+                                                </span>
+                                                <span className="text-slate-400 text-[10px]">
+                                                    Nama/keterangan belanja
+                                                </span>
                                             </div>
                                             <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                                <span className="font-bold text-slate-700 block">Nominal</span>
-                                                <span className="text-slate-400 text-[10px]">Angka bulat (contoh: 50000)</span>
+                                                <span className="font-bold text-slate-700 block">
+                                                    Nominal
+                                                </span>
+                                                <span className="text-slate-400 text-[10px]">
+                                                    Angka bulat (contoh: 50000)
+                                                </span>
                                             </div>
                                             <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                                <span className="font-bold text-slate-700 block">Kategori</span>
-                                                <span className="text-slate-400 text-[10px]">Misal: Makan, Bensin, dll.</span>
+                                                <span className="font-bold text-slate-700 block">
+                                                    Kategori
+                                                </span>
+                                                <span className="text-slate-400 text-[10px]">
+                                                    Misal: Makan, Bensin, dll.
+                                                </span>
                                             </div>
                                             <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                                <span className="font-bold text-slate-700 block">Dompet</span>
-                                                <span className="text-slate-400 text-[10px]">Misal: BCA Ayah, Mandiri Ibu</span>
+                                                <span className="font-bold text-slate-700 block">
+                                                    Dompet
+                                                </span>
+                                                <span className="text-slate-400 text-[10px]">
+                                                    Misal: BCA Ayah, Mandiri Ibu
+                                                </span>
                                             </div>
                                             <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
-                                                <span className="font-bold text-slate-700 block">Anggota Keluarga</span>
-                                                <span className="text-slate-400 text-[10px]">Misal: Ayah (Admin), Ibu</span>
+                                                <span className="font-bold text-slate-700 block">
+                                                    Anggota Keluarga
+                                                </span>
+                                                <span className="text-slate-400 text-[10px]">
+                                                    Misal: Ayah (Admin), Ibu
+                                                </span>
                                             </div>
                                         </div>
                                         <div className="pt-4 flex flex-wrap gap-3">
@@ -4218,7 +6301,8 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                                 onClick={downloadTemplate}
                                                 className="px-4 py-2 border border-blue-200 hover:border-blue-300 text-blue-600 bg-blue-50/50 hover:bg-blue-50 rounded-xl text-xs font-bold transition-all inline-flex items-center gap-1.5 shadow-sm"
                                             >
-                                                <Download className="w-3.5 h-3.5" /> Unduh Template format_import.csv
+                                                <Download className="w-3.5 h-3.5" />{" "}
+                                                Unduh Template format_import.csv
                                             </button>
                                         </div>
                                     </div>
@@ -4228,12 +6312,13 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                             {/* Card 2: Dropzone Pengunggahan */}
                             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                                 <h3 className="font-bold text-md text-slate-800 flex items-center gap-2">
-                                    <Upload className="w-4 h-4 text-blue-500" /> Unggah File CSV
+                                    <Upload className="w-4 h-4 text-blue-500" />{" "}
+                                    Unggah File CSV
                                 </h3>
 
                                 <div className="border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-2xl p-8 text-center transition-all bg-slate-50/50 hover:bg-blue-50/10 relative group">
-                                    <input 
-                                        type="file" 
+                                    <input
+                                        type="file"
                                         accept=".csv"
                                         onChange={handleFileChange}
                                         className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
@@ -4244,13 +6329,24 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                         </div>
                                         {importFileName ? (
                                             <div className="space-y-1">
-                                                <p className="text-sm font-bold text-slate-800">{importFileName}</p>
-                                                <p className="text-xs text-blue-600 font-medium">Klik atau seret file lain untuk mengganti</p>
+                                                <p className="text-sm font-bold text-slate-800">
+                                                    {importFileName}
+                                                </p>
+                                                <p className="text-xs text-blue-600 font-medium">
+                                                    Klik atau seret file lain
+                                                    untuk mengganti
+                                                </p>
                                             </div>
                                         ) : (
                                             <div className="space-y-1">
-                                                <p className="text-sm font-bold text-slate-700">Pilih berkas CSV Anda</p>
-                                                <p className="text-xs text-slate-400">Seret & lepas berkas ke sini, atau klik untuk mencari berkas</p>
+                                                <p className="text-sm font-bold text-slate-700">
+                                                    Pilih berkas CSV Anda
+                                                </p>
+                                                <p className="text-xs text-slate-400">
+                                                    Seret & lepas berkas ke
+                                                    sini, atau klik untuk
+                                                    mencari berkas
+                                                </p>
                                             </div>
                                         )}
                                     </div>
@@ -4260,7 +6356,7 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                             {/* Card 3: Preview Data (Tampil hanya jika ada data pratinjau) */}
                             <AnimatePresence>
                                 {importedData.length > 0 && (
-                                    <motion.div 
+                                    <motion.div
                                         initial={{ opacity: 0, y: 15 }}
                                         animate={{ opacity: 1, y: 0 }}
                                         exit={{ opacity: 0, y: 15 }}
@@ -4269,46 +6365,75 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-4">
                                             <div>
                                                 <h3 className="font-bold text-md text-slate-800">
-                                                    Pratinjau & Edit Data Transaksi (.CSV)
+                                                    Pratinjau & Edit Data
+                                                    Transaksi (.CSV)
                                                 </h3>
                                                 <p className="text-xs text-slate-400 mt-0.5">
-                                                    Anda dapat mengedit data langsung pada tabel di bawah ini seperti Excel sebelum menyimpannya.
+                                                    Anda dapat mengedit data
+                                                    langsung pada tabel di bawah
+                                                    ini seperti Excel sebelum
+                                                    menyimpannya.
                                                 </p>
                                             </div>
                                             <div className="flex flex-wrap items-center gap-3">
                                                 {/* Limit Selector */}
                                                 <div className="flex items-center gap-1.5 text-xs text-slate-500">
                                                     <span>Baris:</span>
-                                                    <select 
-                                                        value={importItemsPerPage} 
+                                                    <select
+                                                        value={
+                                                            importItemsPerPage
+                                                        }
                                                         onChange={(e) => {
-                                                            setImportItemsPerPage(parseInt(e.target.value) || 5);
-                                                            setImportCurrentPage(1);
+                                                            setImportItemsPerPage(
+                                                                parseInt(
+                                                                    e.target
+                                                                        .value,
+                                                                ) || 5,
+                                                            );
+                                                            setImportCurrentPage(
+                                                                1,
+                                                            );
                                                         }}
                                                         className="border border-slate-200 focus:border-blue-400 rounded-xl pl-2.5 pr-8 py-1 text-xs outline-none bg-white cursor-pointer transition-colors"
                                                     >
-                                                        <option value={5}>5</option>
-                                                        <option value={10}>10</option>
-                                                        <option value={25}>25</option>
-                                                        <option value={50}>50</option>
-                                                        <option value={100}>100</option>
+                                                        <option value={5}>
+                                                            5
+                                                        </option>
+                                                        <option value={10}>
+                                                            10
+                                                        </option>
+                                                        <option value={25}>
+                                                            25
+                                                        </option>
+                                                        <option value={50}>
+                                                            50
+                                                        </option>
+                                                        <option value={100}>
+                                                            100
+                                                        </option>
                                                     </select>
                                                 </div>
                                                 {/* Search Input */}
                                                 <div className="relative">
                                                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
-                                                    <input 
-                                                        type="text" 
-                                                        placeholder="Cari pratinjau..." 
-                                                        value={importSearchQuery} 
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Cari pratinjau..."
+                                                        value={
+                                                            importSearchQuery
+                                                        }
                                                         onChange={(e) => {
-                                                            setImportSearchQuery(e.target.value);
-                                                            setImportCurrentPage(1);
+                                                            setImportSearchQuery(
+                                                                e.target.value,
+                                                            );
+                                                            setImportCurrentPage(
+                                                                1,
+                                                            );
                                                         }}
                                                         className="pl-8 pr-4 py-1.5 border border-slate-200 focus:border-blue-400 rounded-xl text-xs focus:ring-0 outline-none transition-colors w-48"
                                                     />
                                                 </div>
-                                                <button 
+                                                <button
                                                     onClick={() => {
                                                         setImportedData([]);
                                                         setImportFileName("");
@@ -4325,148 +6450,385 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                             <table className="w-full min-w-[1080px] text-left text-xs border-collapse">
                                                 <thead>
                                                     <tr className="bg-slate-50 font-bold text-slate-500 border-b border-slate-100">
-                                                        <th className="p-3 w-32">Tanggal</th>
-                                                        <th className="p-3 min-w-[280px]">Deskripsi</th>
-                                                        <th className="p-3 w-40">Nominal</th>
-                                                        <th className="p-3 w-40">Kategori</th>
-                                                        <th className="p-3 w-40">Dompet</th>
-                                                        <th className="p-3 w-40">Anggota</th>
-                                                        <th className="p-3 w-32">Status</th>
-                                                        <th className="p-3 w-20 text-center">Aksi</th>
+                                                        <th className="p-3 w-32">
+                                                            Tanggal
+                                                        </th>
+                                                        <th className="p-3 min-w-[280px]">
+                                                            Deskripsi
+                                                        </th>
+                                                        <th className="p-3 w-40">
+                                                            Nominal
+                                                        </th>
+                                                        <th className="p-3 w-40">
+                                                            Kategori
+                                                        </th>
+                                                        <th className="p-3 w-40">
+                                                            Dompet
+                                                        </th>
+                                                        <th className="p-3 w-40">
+                                                            Anggota
+                                                        </th>
+                                                        <th className="p-3 w-32">
+                                                            Status
+                                                        </th>
+                                                        <th className="p-3 w-20 text-center">
+                                                            Aksi
+                                                        </th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-50 text-slate-700">
-                                                    {paginatedImportedData.map((row, idx) => {
-                                                        const rowDate = row.date || '';
-                                                        const rowDesc = row.description || '';
-                                                        const rowAmt = typeof row.amount === 'number' && !isNaN(row.amount) ? row.amount : 0;
-                                                        const rowCatName = row.categoryName || '';
-                                                        const rowWalletName = row.walletName || '';
-                                                        const rowMemberName = row.memberName || '';
+                                                    {paginatedImportedData.map(
+                                                        (row, idx) => {
+                                                            const rowDate =
+                                                                row.date || "";
+                                                            const rowDesc =
+                                                                row.description ||
+                                                                "";
+                                                            const rowAmt =
+                                                                typeof row.amount ===
+                                                                    "number" &&
+                                                                !isNaN(
+                                                                    row.amount,
+                                                                )
+                                                                    ? row.amount
+                                                                    : 0;
+                                                            const rowCatName =
+                                                                row.categoryName ||
+                                                                "";
+                                                            const rowWalletName =
+                                                                row.walletName ||
+                                                                "";
+                                                            const rowMemberName =
+                                                                row.memberName ||
+                                                                "";
 
-                                                        const dateValid = rowDate && !isNaN(Date.parse(rowDate));
-                                                        const amountValid = rowAmt > 0;
-                                                        
-                                                        const catObj = categories.find(c => c.name && c.name.toLowerCase() === rowCatName.toLowerCase()) 
-                                                            || categories.find(c => c.name === 'Lainnya');
-                                                            
-                                                        const walletObj = wallets.find(w => w.name && w.name.toLowerCase() === rowWalletName.toLowerCase());
-                                                        
-                                                        const memberObj = members.find(m => m.name && m.name.toLowerCase() === rowMemberName.toLowerCase()) 
-                                                            || currentUser;
+                                                            const dateValid =
+                                                                rowDate &&
+                                                                !isNaN(
+                                                                    Date.parse(
+                                                                        rowDate,
+                                                                    ),
+                                                                );
+                                                            const amountValid =
+                                                                rowAmt > 0;
 
-                                                        let statusType = 'success';
-                                                        let statusMsg = 'Valid';
+                                                            const catObj =
+                                                                categories.find(
+                                                                    (c) =>
+                                                                        c.name &&
+                                                                        c.name.toLowerCase() ===
+                                                                            rowCatName.toLowerCase(),
+                                                                ) ||
+                                                                categories.find(
+                                                                    (c) =>
+                                                                        c.name ===
+                                                                        "Lainnya",
+                                                                );
 
-                                                        if (!dateValid) {
-                                                            statusType = 'error';
-                                                            statusMsg = 'Format Tanggal Salah';
-                                                        } else if (!amountValid) {
-                                                            statusType = 'error';
-                                                            statusMsg = 'Nominal harus > 0';
-                                                        } else if (!walletObj) {
-                                                            statusType = 'error';
-                                                            statusMsg = 'Dompet tidak terdaftar';
-                                                        } else if (rowCatName && !categories.find(c => c.name && c.name.toLowerCase() === rowCatName.toLowerCase())) {
-                                                            statusType = 'warning';
-                                                            statusMsg = 'Kategori masuk ke "Lainnya"';
-                                                        } else if (rowMemberName && !members.find(m => m.name && m.name.toLowerCase() === rowMemberName.toLowerCase())) {
-                                                            statusType = 'warning';
-                                                            statusMsg = `Masuk ke akun ${currentUser?.name || 'User'}`;
-                                                        }
+                                                            const walletObj =
+                                                                wallets.find(
+                                                                    (w) =>
+                                                                        w.name &&
+                                                                        w.name.toLowerCase() ===
+                                                                            rowWalletName.toLowerCase(),
+                                                                );
 
-                                                        return (
-                                                            <tr key={idx} className="hover:bg-slate-50/30 transition-colors">
-                                                                {/* Tanggal (Editable Date Input) */}
-                                                                <td className="p-2">
-                                                                    <input 
-                                                                        type="date" 
-                                                                        className="bg-transparent border-0 focus:ring-1 focus:ring-blue-500 rounded p-1 text-xs w-full font-mono outline-none"
-                                                                        value={rowDate} 
-                                                                        onChange={(e) => handleCellEdit(row.originalIndex, 'date', e.target.value)} 
-                                                                    />
-                                                                </td>
-                                                                {/* Deskripsi (Editable Text Input) */}
-                                                                <td className="p-2 min-w-[280px]">
-                                                                    <input 
-                                                                        type="text" 
-                                                                        className="bg-transparent border-0 focus:ring-1 focus:ring-blue-500 rounded p-1 text-xs w-full outline-none"
-                                                                        value={rowDesc} 
-                                                                        onChange={(e) => handleCellEdit(row.originalIndex, 'description', e.target.value)} 
-                                                                    />
-                                                                </td>
-                                                                {/* Nominal (Editable Number Input + IDR visual label) */}
-                                                                <td className="p-2">
-                                                                    <div className="space-y-0.5">
-                                                                        <input 
-                                                                            type="number" 
-                                                                            className="bg-transparent border-0 focus:ring-1 focus:ring-blue-500 rounded p-1 text-xs w-full font-semibold outline-none"
-                                                                            value={rowAmt} 
-                                                                            onChange={(e) => handleCellEdit(row.originalIndex, 'amount', parseFloat(e.target.value) || 0)} 
+                                                            const memberObj =
+                                                                members.find(
+                                                                    (m) =>
+                                                                        m.name &&
+                                                                        m.name.toLowerCase() ===
+                                                                            rowMemberName.toLowerCase(),
+                                                                ) ||
+                                                                currentUser;
+
+                                                            let statusType =
+                                                                "success";
+                                                            let statusMsg =
+                                                                "Valid";
+
+                                                            if (!dateValid) {
+                                                                statusType =
+                                                                    "error";
+                                                                statusMsg =
+                                                                    "Format Tanggal Salah";
+                                                            } else if (
+                                                                !amountValid
+                                                            ) {
+                                                                statusType =
+                                                                    "error";
+                                                                statusMsg =
+                                                                    "Nominal harus > 0";
+                                                            } else if (
+                                                                !walletObj
+                                                            ) {
+                                                                statusType =
+                                                                    "error";
+                                                                statusMsg =
+                                                                    "Dompet tidak terdaftar";
+                                                            } else if (
+                                                                rowCatName &&
+                                                                !categories.find(
+                                                                    (c) =>
+                                                                        c.name &&
+                                                                        c.name.toLowerCase() ===
+                                                                            rowCatName.toLowerCase(),
+                                                                )
+                                                            ) {
+                                                                statusType =
+                                                                    "warning";
+                                                                statusMsg =
+                                                                    'Kategori masuk ke "Lainnya"';
+                                                            } else if (
+                                                                rowMemberName &&
+                                                                !members.find(
+                                                                    (m) =>
+                                                                        m.name &&
+                                                                        m.name.toLowerCase() ===
+                                                                            rowMemberName.toLowerCase(),
+                                                                )
+                                                            ) {
+                                                                statusType =
+                                                                    "warning";
+                                                                statusMsg = `Masuk ke akun ${currentUser?.name || "User"}`;
+                                                            }
+
+                                                            return (
+                                                                <tr
+                                                                    key={idx}
+                                                                    className="hover:bg-slate-50/30 transition-colors"
+                                                                >
+                                                                    {/* Tanggal (Editable Date Input) */}
+                                                                    <td className="p-2">
+                                                                        <input
+                                                                            type="date"
+                                                                            className="bg-transparent border-0 focus:ring-1 focus:ring-blue-500 rounded p-1 text-xs w-full font-mono outline-none"
+                                                                            value={
+                                                                                rowDate
+                                                                            }
+                                                                            onChange={(
+                                                                                e,
+                                                                            ) =>
+                                                                                handleCellEdit(
+                                                                                    row.originalIndex,
+                                                                                    "date",
+                                                                                    e
+                                                                                        .target
+                                                                                        .value,
+                                                                                )
+                                                                            }
                                                                         />
-                                                                        <div className="text-[10px] text-slate-400 px-1 font-medium">{formatIDR(rowAmt)}</div>
-                                                                    </div>
-                                                                </td>
-                                                                {/* Kategori (Editable Category Dropdown) */}
-                                                                <td className="p-2">
-                                                                    <select 
-                                                                        className="bg-transparent border-0 focus:ring-1 focus:ring-blue-500 rounded py-1 pl-1.5 pr-7 text-xs w-full outline-none cursor-pointer"
-                                                                        value={rowCatName} 
-                                                                        onChange={(e) => handleCellEdit(row.originalIndex, 'categoryName', e.target.value)}
-                                                                    >
-                                                                        {categories.map(c => (
-                                                                            <option key={c.id} value={c.name}>{c.name}</option>
-                                                                        ))}
-                                                                    </select>
-                                                                </td>
-                                                                {/* Dompet (Editable Wallet Dropdown) */}
-                                                                <td className="p-2">
-                                                                    <select 
-                                                                        className="bg-transparent border-0 focus:ring-1 focus:ring-blue-500 rounded py-1 pl-1.5 pr-7 text-xs w-full outline-none text-slate-500 font-medium cursor-pointer"
-                                                                        value={rowWalletName} 
-                                                                        onChange={(e) => handleCellEdit(row.originalIndex, 'walletName', e.target.value)}
-                                                                    >
-                                                                        <option value="">-- Pilih --</option>
-                                                                        {wallets.map(w => (
-                                                                            <option key={w.id} value={w.name}>{w.name}</option>
-                                                                        ))}
-                                                                    </select>
-                                                                </td>
-                                                                {/* Anggota (Editable Member Dropdown) */}
-                                                                <td className="p-2">
-                                                                    <select 
-                                                                        className="bg-transparent border-0 focus:ring-1 focus:ring-blue-500 rounded py-1 pl-1.5 pr-7 text-xs w-full outline-none text-slate-600 font-medium cursor-pointer"
-                                                                        value={rowMemberName} 
-                                                                        onChange={(e) => handleCellEdit(row.originalIndex, 'memberName', e.target.value)}
-                                                                    >
-                                                                        {members.map(m => (
-                                                                            <option key={m.id} value={m.name}>{m.name}</option>
-                                                                        ))}
-                                                                    </select>
-                                                                </td>
-                                                                {/* Status */}
-                                                                <td className="p-3">
-                                                                    <span className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-                                                                        statusType === 'success' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                                                                        statusType === 'warning' ? 'bg-amber-50 text-amber-600 border border-amber-100' :
-                                                                        'bg-rose-50 text-rose-600 border border-rose-100'
-                                                                    }`}>
-                                                                        {statusMsg}
-                                                                    </span>
-                                                                </td>
-                                                                {/* Aksi */}
-                                                                <td className="p-2 text-center">
-                                                                    <button
-                                                                        onClick={() => handleDeleteImportRow(row.originalIndex)}
-                                                                        className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-all"
-                                                                        title="Hapus Baris"
-                                                                    >
-                                                                        <Trash2 className="w-4 h-4" />
-                                                                    </button>
-                                                                </td>
-                                                            </tr>
-                                                        );
-                                                    })}
+                                                                    </td>
+                                                                    {/* Deskripsi (Editable Text Input) */}
+                                                                    <td className="p-2 min-w-[280px]">
+                                                                        <input
+                                                                            type="text"
+                                                                            className="bg-transparent border-0 focus:ring-1 focus:ring-blue-500 rounded p-1 text-xs w-full outline-none"
+                                                                            value={
+                                                                                rowDesc
+                                                                            }
+                                                                            onChange={(
+                                                                                e,
+                                                                            ) =>
+                                                                                handleCellEdit(
+                                                                                    row.originalIndex,
+                                                                                    "description",
+                                                                                    e
+                                                                                        .target
+                                                                                        .value,
+                                                                                )
+                                                                            }
+                                                                        />
+                                                                    </td>
+                                                                    {/* Nominal (Editable Number Input + IDR visual label) */}
+                                                                    <td className="p-2">
+                                                                        <div className="space-y-0.5">
+                                                                            <input
+                                                                                type="number"
+                                                                                className="bg-transparent border-0 focus:ring-1 focus:ring-blue-500 rounded p-1 text-xs w-full font-semibold outline-none"
+                                                                                value={
+                                                                                    rowAmt
+                                                                                }
+                                                                                onChange={(
+                                                                                    e,
+                                                                                ) =>
+                                                                                    handleCellEdit(
+                                                                                        row.originalIndex,
+                                                                                        "amount",
+                                                                                        parseFloat(
+                                                                                            e
+                                                                                                .target
+                                                                                                .value,
+                                                                                        ) ||
+                                                                                            0,
+                                                                                    )
+                                                                                }
+                                                                            />
+                                                                            <div className="text-[10px] text-slate-400 px-1 font-medium">
+                                                                                {formatIDR(
+                                                                                    rowAmt,
+                                                                                )}
+                                                                            </div>
+                                                                        </div>
+                                                                    </td>
+                                                                    {/* Kategori (Editable Category Dropdown) */}
+                                                                    <td className="p-2">
+                                                                        <select
+                                                                            className="bg-transparent border-0 focus:ring-1 focus:ring-blue-500 rounded py-1 pl-1.5 pr-7 text-xs w-full outline-none cursor-pointer"
+                                                                            value={
+                                                                                rowCatName
+                                                                            }
+                                                                            onChange={(
+                                                                                e,
+                                                                            ) =>
+                                                                                handleCellEdit(
+                                                                                    row.originalIndex,
+                                                                                    "categoryName",
+                                                                                    e
+                                                                                        .target
+                                                                                        .value,
+                                                                                )
+                                                                            }
+                                                                        >
+                                                                            {categories.map(
+                                                                                (
+                                                                                    c,
+                                                                                ) => (
+                                                                                    <option
+                                                                                        key={
+                                                                                            c.id
+                                                                                        }
+                                                                                        value={
+                                                                                            c.name
+                                                                                        }
+                                                                                    >
+                                                                                        {
+                                                                                            c.name
+                                                                                        }
+                                                                                    </option>
+                                                                                ),
+                                                                            )}
+                                                                        </select>
+                                                                    </td>
+                                                                    {/* Dompet (Editable Wallet Dropdown) */}
+                                                                    <td className="p-2">
+                                                                        <select
+                                                                            className="bg-transparent border-0 focus:ring-1 focus:ring-blue-500 rounded py-1 pl-1.5 pr-7 text-xs w-full outline-none text-slate-500 font-medium cursor-pointer"
+                                                                            value={
+                                                                                rowWalletName
+                                                                            }
+                                                                            onChange={(
+                                                                                e,
+                                                                            ) =>
+                                                                                handleCellEdit(
+                                                                                    row.originalIndex,
+                                                                                    "walletName",
+                                                                                    e
+                                                                                        .target
+                                                                                        .value,
+                                                                                )
+                                                                            }
+                                                                        >
+                                                                            <option value="">
+                                                                                --
+                                                                                Pilih
+                                                                                --
+                                                                            </option>
+                                                                            {wallets.map(
+                                                                                (
+                                                                                    w,
+                                                                                ) => (
+                                                                                    <option
+                                                                                        key={
+                                                                                            w.id
+                                                                                        }
+                                                                                        value={
+                                                                                            w.name
+                                                                                        }
+                                                                                    >
+                                                                                        {
+                                                                                            w.name
+                                                                                        }
+                                                                                    </option>
+                                                                                ),
+                                                                            )}
+                                                                        </select>
+                                                                    </td>
+                                                                    {/* Anggota (Editable Member Dropdown) */}
+                                                                    <td className="p-2">
+                                                                        <select
+                                                                            className="bg-transparent border-0 focus:ring-1 focus:ring-blue-500 rounded py-1 pl-1.5 pr-7 text-xs w-full outline-none text-slate-600 font-medium cursor-pointer"
+                                                                            value={
+                                                                                rowMemberName
+                                                                            }
+                                                                            onChange={(
+                                                                                e,
+                                                                            ) =>
+                                                                                handleCellEdit(
+                                                                                    row.originalIndex,
+                                                                                    "memberName",
+                                                                                    e
+                                                                                        .target
+                                                                                        .value,
+                                                                                )
+                                                                            }
+                                                                        >
+                                                                            {members.map(
+                                                                                (
+                                                                                    m,
+                                                                                ) => (
+                                                                                    <option
+                                                                                        key={
+                                                                                            m.id
+                                                                                        }
+                                                                                        value={
+                                                                                            m.name
+                                                                                        }
+                                                                                    >
+                                                                                        {
+                                                                                            m.name
+                                                                                        }
+                                                                                    </option>
+                                                                                ),
+                                                                            )}
+                                                                        </select>
+                                                                    </td>
+                                                                    {/* Status */}
+                                                                    <td className="p-3">
+                                                                        <span
+                                                                            className={`inline-flex px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                                                                statusType ===
+                                                                                "success"
+                                                                                    ? "bg-emerald-50 text-emerald-600 border border-emerald-100"
+                                                                                    : statusType ===
+                                                                                        "warning"
+                                                                                      ? "bg-amber-50 text-amber-600 border border-amber-100"
+                                                                                      : "bg-rose-50 text-rose-600 border border-rose-100"
+                                                                            }`}
+                                                                        >
+                                                                            {
+                                                                                statusMsg
+                                                                            }
+                                                                        </span>
+                                                                    </td>
+                                                                    {/* Aksi */}
+                                                                    <td className="p-2 text-center">
+                                                                        <button
+                                                                            onClick={() =>
+                                                                                handleDeleteImportRow(
+                                                                                    row.originalIndex,
+                                                                                )
+                                                                            }
+                                                                            className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-all"
+                                                                            title="Hapus Baris"
+                                                                        >
+                                                                            <Trash2 className="w-4 h-4" />
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        },
+                                                    )}
                                                 </tbody>
                                             </table>
                                         </div>
@@ -4474,22 +6836,58 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                         {/* Pagination Controls */}
                                         <div className="flex flex-col sm:flex-row items-center justify-between border-t border-slate-100 pt-4 text-xs gap-3">
                                             <span className="text-slate-500">
-                                                Menampilkan {filteredImportedData.length > 0 ? (importCurrentPage - 1) * importItemsPerPage + 1 : 0} - {Math.min(importCurrentPage * importItemsPerPage, filteredImportedData.length)} dari {filteredImportedData.length} baris
+                                                Menampilkan{" "}
+                                                {filteredImportedData.length > 0
+                                                    ? (importCurrentPage - 1) *
+                                                          importItemsPerPage +
+                                                      1
+                                                    : 0}{" "}
+                                                -{" "}
+                                                {Math.min(
+                                                    importCurrentPage *
+                                                        importItemsPerPage,
+                                                    filteredImportedData.length,
+                                                )}{" "}
+                                                dari{" "}
+                                                {filteredImportedData.length}{" "}
+                                                baris
                                             </span>
                                             <div className="flex items-center gap-2">
                                                 <button
-                                                    disabled={importCurrentPage === 1}
-                                                    onClick={() => setImportCurrentPage(prev => Math.max(1, prev - 1))}
+                                                    disabled={
+                                                        importCurrentPage === 1
+                                                    }
+                                                    onClick={() =>
+                                                        setImportCurrentPage(
+                                                            (prev) =>
+                                                                Math.max(
+                                                                    1,
+                                                                    prev - 1,
+                                                                ),
+                                                        )
+                                                    }
                                                     className="px-3 py-1.5 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-xl disabled:opacity-50 disabled:hover:bg-transparent transition-all font-bold text-slate-600"
                                                 >
                                                     Sebelumnya
                                                 </button>
                                                 <span className="font-bold text-slate-700 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100">
-                                                    Halaman {importCurrentPage} dari {totalImportPages}
+                                                    Halaman {importCurrentPage}{" "}
+                                                    dari {totalImportPages}
                                                 </span>
                                                 <button
-                                                    disabled={importCurrentPage === totalImportPages}
-                                                    onClick={() => setImportCurrentPage(prev => Math.min(totalImportPages, prev + 1))}
+                                                    disabled={
+                                                        importCurrentPage ===
+                                                        totalImportPages
+                                                    }
+                                                    onClick={() =>
+                                                        setImportCurrentPage(
+                                                            (prev) =>
+                                                                Math.min(
+                                                                    totalImportPages,
+                                                                    prev + 1,
+                                                                ),
+                                                        )
+                                                    }
                                                     className="px-3 py-1.5 border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-xl disabled:opacity-50 disabled:hover:bg-transparent transition-all font-bold text-slate-600"
                                                 >
                                                     Selanjutnya
@@ -4510,15 +6908,44 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                                 Batalkan
                                             </button>
                                             <button
-                                                disabled={isImporting || importedData.length === 0 || importedData.some(row => {
-                                                    const rowDate = row.date || '';
-                                                    const rowAmt = typeof row.amount === 'number' && !isNaN(row.amount) ? row.amount : 0;
-                                                    const rowWalletName = row.walletName || '';
-                                                    const dateValid = rowDate && !isNaN(Date.parse(rowDate));
-                                                    const amountValid = rowAmt > 0;
-                                                    const walletObj = wallets.find(w => w.name && w.name.toLowerCase() === rowWalletName.toLowerCase());
-                                                    return !walletObj || !dateValid || !amountValid;
-                                                })}
+                                                disabled={
+                                                    isImporting ||
+                                                    importedData.length === 0 ||
+                                                    importedData.some((row) => {
+                                                        const rowDate =
+                                                            row.date || "";
+                                                        const rowAmt =
+                                                            typeof row.amount ===
+                                                                "number" &&
+                                                            !isNaN(row.amount)
+                                                                ? row.amount
+                                                                : 0;
+                                                        const rowWalletName =
+                                                            row.walletName ||
+                                                            "";
+                                                        const dateValid =
+                                                            rowDate &&
+                                                            !isNaN(
+                                                                Date.parse(
+                                                                    rowDate,
+                                                                ),
+                                                            );
+                                                        const amountValid =
+                                                            rowAmt > 0;
+                                                        const walletObj =
+                                                            wallets.find(
+                                                                (w) =>
+                                                                    w.name &&
+                                                                    w.name.toLowerCase() ===
+                                                                        rowWalletName.toLowerCase(),
+                                                            );
+                                                        return (
+                                                            !walletObj ||
+                                                            !dateValid ||
+                                                            !amountValid
+                                                        );
+                                                    })
+                                                }
                                                 onClick={handleImportSubmit}
                                                 className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-blue-100 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                                             >
@@ -4530,7 +6957,9 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                                                 ) : (
                                                     <>
                                                         <Check className="w-3.5 h-3.5" />
-                                                        Simpan & Import {importedData.length} Transaksi
+                                                        Simpan & Import{" "}
+                                                        {importedData.length}{" "}
+                                                        Transaksi
                                                     </>
                                                 )}
                                             </button>
@@ -4542,155 +6971,225 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                     )}
 
                     {/* Modal Reset Data Transaksi */}
-                    {isResetModalOpen && createPortal(
-                        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-                            <div className="bg-white rounded-2xl border border-slate-150 max-w-lg w-full p-6 shadow-xl space-y-5 animate-scaleUp max-h-[90vh] overflow-y-auto">
-                                <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="p-2 bg-rose-50 rounded-xl">
-                                            <RotateCcw className="w-5 h-5 text-rose-600" />
+                    {isResetModalOpen &&
+                        createPortal(
+                            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 overflow-y-auto w-full h-full min-h-screen">
+                                <div
+                                    className="fixed inset-0 w-full h-full bg-slate-900/60 backdrop-blur-md transition-opacity"
+                                    onClick={() => {
+                                        setIsResetModalOpen(false);
+                                        setSelectedResetMonths([]);
+                                    }}
+                                />
+                                <div className="relative bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 animate-scaleUp z-10 border border-slate-100/50 max-h-[90vh] overflow-y-auto">
+                                    <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2 bg-rose-50 rounded-xl">
+                                                <RotateCcw className="w-5 h-5 text-rose-600" />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-slate-900 text-base">
+                                                    Reset Seluruh Data
+                                                </h3>
+                                                <p className="text-[11px] text-slate-400">
+                                                    Bersihkan data transaksi
+                                                    pada bulan tertentu
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <h3 className="font-bold text-slate-900 text-base">
-                                                Reset Seluruh Data
-                                            </h3>
-                                            <p className="text-[11px] text-slate-400">
-                                                Bersihkan data transaksi pada bulan tertentu
+                                        <button
+                                            onClick={() => {
+                                                setIsResetModalOpen(false);
+                                                setSelectedResetMonths([]);
+                                            }}
+                                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all"
+                                        >
+                                            <X className="w-4 h-4" />
+                                        </button>
+                                    </div>
+
+                                    {/* Warning Box */}
+                                    <div className="bg-rose-50/50 border border-rose-100 p-4 rounded-2xl flex items-start gap-3">
+                                        <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+                                        <div className="space-y-1">
+                                            <h4 className="text-xs font-bold text-rose-800 uppercase tracking-wider">
+                                                Peringatan Penting!
+                                            </h4>
+                                            <p className="text-xs text-rose-600 leading-relaxed font-medium">
+                                                Tindakan ini akan menghapus
+                                                semua transaksi pengeluaran &
+                                                pemasukan secara permanen pada
+                                                bulan yang dipilih. Jika memilih
+                                                Semua Role, seluruh data
+                                                kategori & kantong juga akan
+                                                dikembalikan ke data bawaan.
+                                                Akun pengguna dan hak akses
+                                                tetap aman.
                                             </p>
                                         </div>
                                     </div>
-                                    <button
-                                        onClick={() => {
-                                            setIsResetModalOpen(false);
-                                            setSelectedResetMonths([]);
-                                        }}
-                                        className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all"
-                                    >
-                                        <X className="w-4 h-4" />
-                                    </button>
-                                </div>
- 
-                                {/* Warning Box */}
-                                <div className="bg-rose-50/50 border border-rose-100 p-4 rounded-2xl flex items-start gap-3">
-                                    <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
-                                    <div className="space-y-1">
-                                        <h4 className="text-xs font-bold text-rose-800 uppercase tracking-wider">
-                                            Peringatan Penting!
-                                        </h4>
-                                        <p className="text-xs text-rose-600 leading-relaxed font-medium">
-                                            Tindakan ini akan menghapus semua transaksi pengeluaran & pemasukan secara permanen pada bulan yang dipilih. Jika memilih Semua Role, seluruh data kategori & kantong juga akan dikembalikan ke data bawaan. Akun pengguna dan hak akses tetap aman.
-                                        </p>
+
+                                    {/* Month Selection List */}
+                                    <div className="space-y-3">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                                                Pilih Bulan Transaksi
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    if (
+                                                        selectedResetMonths.length ===
+                                                        availableTransactionMonths.length
+                                                    ) {
+                                                        setSelectedResetMonths(
+                                                            [],
+                                                        );
+                                                    } else {
+                                                        setSelectedResetMonths([
+                                                            ...availableTransactionMonths,
+                                                        ]);
+                                                    }
+                                                }}
+                                                className="text-xs text-blue-600 hover:underline font-bold"
+                                            >
+                                                {selectedResetMonths.length ===
+                                                availableTransactionMonths.length
+                                                    ? "Batal Pilih Semua"
+                                                    : "Pilih Semua"}
+                                            </button>
+                                        </div>
+
+                                        <div className="border border-slate-150 rounded-2xl divide-y divide-slate-100 max-h-48 overflow-y-auto bg-slate-50/30">
+                                            {availableTransactionMonths.length ===
+                                            0 ? (
+                                                <div className="p-4 text-center text-xs text-slate-400 font-medium">
+                                                    Tidak ada data transaksi
+                                                    yang tersedia untuk direset.
+                                                </div>
+                                            ) : (
+                                                availableTransactionMonths.map(
+                                                    (monthStr) => {
+                                                        const isChecked =
+                                                            selectedResetMonths.includes(
+                                                                monthStr,
+                                                            );
+                                                        return (
+                                                            <label
+                                                                key={monthStr}
+                                                                className="flex items-center justify-between p-3 cursor-pointer hover:bg-slate-50 transition-colors"
+                                                            >
+                                                                <span className="text-xs font-bold text-slate-700">
+                                                                    {formatMonthYear(
+                                                                        monthStr,
+                                                                    )}
+                                                                </span>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={
+                                                                        isChecked
+                                                                    }
+                                                                    onChange={() => {
+                                                                        if (
+                                                                            isChecked
+                                                                        ) {
+                                                                            setSelectedResetMonths(
+                                                                                (
+                                                                                    prev,
+                                                                                ) =>
+                                                                                    prev.filter(
+                                                                                        (
+                                                                                            m,
+                                                                                        ) =>
+                                                                                            m !==
+                                                                                            monthStr,
+                                                                                    ),
+                                                                            );
+                                                                        } else {
+                                                                            setSelectedResetMonths(
+                                                                                (
+                                                                                    prev,
+                                                                                ) => [
+                                                                                    ...prev,
+                                                                                    monthStr,
+                                                                                ],
+                                                                            );
+                                                                        }
+                                                                    }}
+                                                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                                                                />
+                                                            </label>
+                                                        );
+                                                    },
+                                                )
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
- 
-                                {/* Month Selection List */}
-                                <div className="space-y-3">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                                            Pilih Bulan Transaksi
-                                        </span>
+
+                                    {/* Role Selection */}
+                                    <div className="space-y-3 mt-4">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
+                                                Pilih Role (Opsional)
+                                            </span>
+                                        </div>
+                                        <select
+                                            value={selectedResetRole}
+                                            onChange={(e) =>
+                                                setSelectedResetRole(
+                                                    e.target.value,
+                                                )
+                                            }
+                                            className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
+                                        >
+                                            <option value="all">
+                                                Semua Role
+                                            </option>
+                                            <option value="Suami">Suami</option>
+                                            <option value="Istri">Istri</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Modal Actions */}
+                                    <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                if (selectedResetMonths.length === availableTransactionMonths.length) {
-                                                    setSelectedResetMonths([]);
-                                                } else {
-                                                    setSelectedResetMonths([...availableTransactionMonths]);
-                                                }
+                                                setIsResetModalOpen(false);
+                                                setSelectedResetMonths([]);
                                             }}
-                                            className="text-xs text-blue-600 hover:underline font-bold"
+                                            className="px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all"
                                         >
-                                            {selectedResetMonths.length === availableTransactionMonths.length ? "Batal Pilih Semua" : "Pilih Semua"}
+                                            Batal
+                                        </button>
+                                        <button
+                                            type="button"
+                                            disabled={
+                                                selectedResetMonths.length ===
+                                                    0 || isResetting
+                                            }
+                                            onClick={handleResetSubmit}
+                                            className="px-6 py-2.5 bg-rose-600 text-white rounded-xl text-xs font-bold hover:bg-rose-700 shadow-md shadow-rose-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                                        >
+                                            {isResetting ? (
+                                                <>
+                                                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                                    Mereset...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <RotateCcw className="w-3.5 h-3.5" />
+                                                    Reset Data (
+                                                    {selectedResetMonths.length}{" "}
+                                                    Bulan)
+                                                </>
+                                            )}
                                         </button>
                                     </div>
- 
-                                    <div className="border border-slate-150 rounded-2xl divide-y divide-slate-100 max-h-48 overflow-y-auto bg-slate-50/30">
-                                        {availableTransactionMonths.length === 0 ? (
-                                            <div className="p-4 text-center text-xs text-slate-400 font-medium">
-                                                Tidak ada data transaksi yang tersedia untuk direset.
-                                            </div>
-                                        ) : (
-                                            availableTransactionMonths.map(monthStr => {
-                                                const isChecked = selectedResetMonths.includes(monthStr);
-                                                return (
-                                                    <label 
-                                                        key={monthStr}
-                                                        className="flex items-center justify-between p-3 cursor-pointer hover:bg-slate-50 transition-colors"
-                                                    >
-                                                        <span className="text-xs font-bold text-slate-700">
-                                                            {formatMonthYear(monthStr)}
-                                                        </span>
-                                                        <input 
-                                                            type="checkbox"
-                                                            checked={isChecked}
-                                                            onChange={() => {
-                                                                if (isChecked) {
-                                                                    setSelectedResetMonths(prev => prev.filter(m => m !== monthStr));
-                                                                } else {
-                                                                    setSelectedResetMonths(prev => [...prev, monthStr]);
-                                                                }
-                                                            }}
-                                                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
-                                                        />
-                                                    </label>
-                                                );
-                                            })
-                                        )}
-                                    </div>
                                 </div>
- 
-                                {/* Role Selection */}
-                                <div className="space-y-3 mt-4">
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-                                            Pilih Role (Opsional)
-                                        </span>
-                                    </div>
-                                    <select
-                                        value={selectedResetRole}
-                                        onChange={(e) => setSelectedResetRole(e.target.value)}
-                                        className="w-full px-4 py-3 rounded-2xl border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 bg-white"
-                                    >
-                                        <option value="all">Semua Role</option>
-                                        <option value="Suami">Suami</option>
-                                        <option value="Istri">Istri</option>
-                                    </select>
-                                </div>
-
-                                {/* Modal Actions */}
-                                <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setIsResetModalOpen(false);
-                                            setSelectedResetMonths([]);
-                                        }}
-                                        className="px-5 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition-all"
-                                    >
-                                        Batal
-                                    </button>
-                                    <button
-                                        type="button"
-                                        disabled={selectedResetMonths.length === 0 || isResetting}
-                                        onClick={handleResetSubmit}
-                                        className="px-6 py-2.5 bg-rose-600 text-white rounded-xl text-xs font-bold hover:bg-rose-700 shadow-md shadow-rose-100 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-                                    >
-                                        {isResetting ? (
-                                            <>
-                                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                                Mereset...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <RotateCcw className="w-3.5 h-3.5" />
-                                                Reset Data ({selectedResetMonths.length} Bulan)
-                                            </>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    , document.body)}
+                            </div>,
+                            document.body,
+                        )}
                 </section>
             </main>
 
@@ -4711,7 +7210,8 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                             />
                         </button>
                     )}
-                    {(hasPermission("kelola_dompet") || hasPermission("lihat_dompet")) && (
+                    {(hasPermission("kelola_dompet") ||
+                        hasPermission("lihat_dompet")) && (
                         <button
                             onClick={() => {
                                 setActiveTab("dompet");
@@ -4765,7 +7265,11 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                         className="flex flex-col items-center justify-center p-2 transition-transform active:scale-95"
                     >
                         {currentUser?.avatar ? (
-                            <img src={`/storage/${currentUser.avatar}`} alt="Avatar" className={`w-7 h-7 rounded-full object-cover border-2 ${activeTab === "profile" ? "border-blue-500 shadow-md shadow-blue-200" : "border-transparent"}`} />
+                            <img
+                                src={`/storage/${currentUser.avatar}`}
+                                alt="Avatar"
+                                className={`w-7 h-7 rounded-full object-cover border-2 ${activeTab === "profile" ? "border-blue-500 shadow-md shadow-blue-200" : "border-transparent"}`}
+                            />
                         ) : (
                             <div
                                 className={`w-7 h-7 rounded-full flex items-center justify-center font-bold text-xs ${activeTab === "profile" ? "bg-blue-600 text-white shadow-md shadow-blue-200" : "bg-slate-200 text-slate-500"}`}
@@ -4780,70 +7284,13 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
             </nav>
 
             {/* MODAL TAMBAH / EDIT KANTONG */}
-            {showAddWalletModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-fadeIn">
-                    <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden animate-slideUp">
-                        <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-                            <h3 className="font-bold text-lg text-slate-900">{newWallet.id ? "Edit Kantong" : "Tambah Kantong"}</h3>
-                            <button onClick={() => setShowAddWalletModal(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-colors">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="p-6">
-                            <form onSubmit={handleAddWallet} className="space-y-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-2">Nama Kantong</label>
-                                    <input type="text" value={newWallet.name} onChange={(e) => setNewWallet({...newWallet, name: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" placeholder="Contoh: BCA Ayah" required />
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-2">Nominal Saldo Awal</label>
-                                    <div className="relative">
-                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500 font-bold text-sm">Rp</span>
-                                        <input type="text" value={newWallet.balance} onChange={(e) => {
-                                            const val = e.target.value.replace(/[^0-9]/g, '');
-                                            setNewWallet({...newWallet, balance: val});
-                                        }} className="w-full pl-11 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" placeholder="0" required />
-                                    </div>
-                                    <p className="text-[10px] text-slate-400 mt-1">Otomatis terformat: {formatIDR(newWallet.balance || 0)}</p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-2">Tipe Kantong</label>
-                                        <select value={newWallet.type} onChange={(e) => setNewWallet({...newWallet, type: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-blue-500 transition-all">
-                                            <option value="Bank">Bank</option>
-                                            <option value="E-Wallet">E-Wallet</option>
-                                            <option value="Tunai">Tunai</option>
-                                            <option value="Investasi">Investasi</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-2">Pilih Ikon</label>
-                                        <select value={newWallet.icon || "Wallet"} onChange={(e) => setNewWallet({...newWallet, icon: e.target.value})} className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:border-blue-500 transition-all">
-                                            <option value="Wallet">Dompet</option>
-                                            <option value="CreditCard">Kartu Kredit</option>
-                                            <option value="Building">Bank</option>
-                                            <option value="Smartphone">HP (E-Wallet)</option>
-                                            <option value="Coins">Koin</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-700 mb-2">Warna Kantong</label>
-                                    <div className="flex flex-wrap gap-2">
-                                        {['bg-blue-600', 'bg-emerald-600', 'bg-rose-600', 'bg-amber-500', 'bg-purple-600', 'bg-indigo-600', 'bg-cyan-600', 'bg-slate-800'].map(c => (
-                                            <button key={c} type="button" onClick={() => setNewWallet({...newWallet, color: c})} className={`w-8 h-8 rounded-full ${c} ${newWallet.color === c ? 'ring-2 ring-offset-2 ring-blue-500 shadow-md scale-110' : 'opacity-80 hover:opacity-100 hover:scale-110'} transition-all`}></button>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="pt-4 border-t border-slate-100 flex gap-3">
-                                    <button type="button" onClick={() => setShowAddWalletModal(false)} className="flex-1 py-3 bg-slate-100 text-slate-600 font-bold text-sm rounded-xl hover:bg-slate-200 transition-colors">Batal</button>
-                                    <button type="submit" className="flex-1 py-3 bg-blue-600 text-white font-bold text-sm rounded-xl hover:bg-blue-700 shadow-md shadow-blue-200 transition-all">Simpan</button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <WalletFormModal
+                isOpen={showAddWalletModal}
+                onClose={() => setShowAddWalletModal(false)}
+                newWallet={newWallet}
+                setNewWallet={setNewWallet}
+                onSubmit={handleAddWallet}
+            />
 
             {/* Tombol Kembali Ke Atas */}
             <div
@@ -4860,204 +7307,178 @@ export default function App({ auth, initialMembers, initialCategories, initialWa
                 </button>
             </div>
 
-                            {/* MODAL EDIT DATA TRANSAKSI (Sleek Overlay) */}
-                            {editingTx && (
-                                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                                    <div className="bg-white rounded-2xl border border-slate-150 max-w-lg w-full p-6 shadow-xl space-y-4 animate-scaleUp">
-                                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                                            <h3 className="font-bold text-slate-900 text-base">
-                                                Ubah Transaksi
-                                            </h3>
-                                            <button
-                                                onClick={() =>
-                                                    setEditingTx(null)
-                                                }
-                                                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
-
-                                        <form
-                                             onSubmit={handleSaveEditTransaction}
-                                             className="space-y-4"
-                                         >
-                                             {/* Nominal (Rp) - Readonly / Disabled with Format Rupiah */}
-                                             <div>
-                                                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                                                     Nominal (Rp)
-                                                 </label>
-                                                 <input
-                                                     type="text"
-                                                     value={editingTx.amount ? `Rp ${parseInt(editingTx.amount.toString().replace(/[^0-9]/g, "") || 0).toLocaleString('id-ID')}` : ""}
-                                                     disabled
-                                                     className="w-full px-3 py-2 border border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed rounded-lg text-xs font-bold"
-                                                 />
-                                             </div>
-
-                                             {/* Kategori & Dompet */}
-                                             {editingTx.type !== "income" && (
-                                                 <div className="grid grid-cols-2 gap-4">
-                                                     <div>
-                                                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                                                             Kategori
-                                                         </label>
-                                                         <select
-                                                             value={
-                                                                 editingTx.categoryId
-                                                             }
-                                                             onChange={(e) =>
-                                                                 setEditingTx({
-                                                                     ...editingTx,
-                                                                     categoryId:
-                                                                         e.target
-                                                                             .value,
-                                                                 })
-                                                             }
-                                                             className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white text-slate-800 focus:ring-1 focus:ring-blue-500"
-                                                         >
-                                                             {categories.map((c) => (
-                                                                 <option
-                                                                     key={c.id}
-                                                                     value={c.id}
-                                                                 >
-                                                                     {c.name}
-                                                                 </option>
-                                                             ))}
-                                                         </select>
-                                                     </div>
-
-                                                     <div>
-                                                         <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                                                             Dompet
-                                                         </label>
-                                                         <select
-                                                             value={
-                                                                 editingTx.walletId
-                                                             }
-                                                             onChange={(e) =>
-                                                                 setEditingTx({
-                                                                     ...editingTx,
-                                                                     walletId:
-                                                                         e.target
-                                                                             .value,
-                                                                 })
-                                                             }
-                                                             className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white text-slate-800 focus:ring-1 focus:ring-blue-500"
-                                                         >
-                                                             {wallets.map((w) => (
-                                                                 <option
-                                                                     key={w.id}
-                                                                     value={w.id}
-                                                                 >
-                                                                     {w.name}
-                                                                 </option>
-                                                             ))}
-                                                         </select>
-                                                     </div>
-                                                 </div>
-                                             )}
-
-                                             {/* Tanggal */}
-                                             <div>
-                                                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                                                     Tanggal
-                                                 </label>
-                                                 <input
-                                                     type="date"
-                                                     value={editingTx.date}
-                                                     onChange={(e) =>
-                                                         setEditingTx({
-                                                             ...editingTx,
-                                                             date: e.target
-                                                                 .value,
-                                                         })
-                                                     }
-                                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-800 focus:ring-1 focus:ring-blue-500"
-                                                 />
-                                             </div>
-
-                                             {/* Deskripsi (at the bottom) */}
-                                             <div>
-                                                 <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
-                                                     Deskripsi
-                                                 </label>
-                                                 <input
-                                                     type="text"
-                                                     value={
-                                                         editingTx.description
-                                                     }
-                                                     onChange={(e) =>
-                                                         setEditingTx({
-                                                             ...editingTx,
-                                                             description:
-                                                                 e.target.value,
-                                                         })
-                                                     }
-                                                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:ring-1 focus:ring-blue-500 text-slate-800"
-                                                 />
-                                             </div>
-
-                                             {/* Anggota (Hidden input, because member is determined by active login session) */}
-                                             <input
-                                                 type="hidden"
-                                                 value={editingTx.memberId}
-                                             />
-
-                                             <div className="flex justify-end space-x-2 pt-4 border-t border-slate-100">
-                                                 <button
-                                                     type="button"
-                                                     onClick={() =>
-                                                         setEditingTx(null)
-                                                     }
-                                                     className="px-4 py-2 border border-slate-200 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-50 transition-all"
-                                                 >
-                                                     Batal
-                                                 </button>
-                                                 <button
-                                                     type="submit"
-                                                     className="px-5 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-100 transition-all"
-                                                 >
-                                                     Simpan Perubahan
-                                                 </button>
-                                             </div>
-                                         </form>
-                                    </div>
-                                </div>
-                            )}
-            {/* MODAL TOP UP */}
-            {showTopUpModal && (
-                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl border border-slate-150 max-w-sm w-full p-6 shadow-xl animate-scaleUp">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
-                            <h3 className="font-bold text-slate-900 text-base">Top Up Kantong</h3>
-                            <button onClick={() => setShowTopUpModal(false)} className="p-1 hover:bg-slate-100 rounded-lg text-slate-400">
+            {/* MODAL EDIT DATA TRANSAKSI (Sleek Overlay) */}
+            {editingTx && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto w-full h-full min-h-screen">
+                    <div
+                        className="fixed inset-0 w-full h-full bg-slate-900/60 backdrop-blur-md transition-opacity"
+                        onClick={() => setEditingTx(null)}
+                    />
+                    <div className="relative bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 animate-scaleUp z-10 border border-slate-100/50">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                            <h3 className="font-bold text-slate-900 text-base">
+                                Ubah Transaksi
+                            </h3>
+                            <button
+                                onClick={() => setEditingTx(null)}
+                                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-all"
+                            >
                                 <X className="w-4 h-4" />
                             </button>
                         </div>
-                        <form onSubmit={handleTopUpSubmit} className="space-y-4">
+
+                        <form
+                            onSubmit={handleSaveEditTransaction}
+                            className="space-y-4"
+                        >
+                            {/* Nominal (Rp) - Readonly / Disabled with Format Rupiah */}
                             <div>
-                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Nominal Top Up</label>
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
+                                    Nominal (Rp)
+                                </label>
                                 <input
                                     type="text"
-                                    value={topUpData.amount ? `Rp ${parseInt(topUpData.amount.toString().replace(/[^0-9]/g, "") || 0).toLocaleString('id-ID')}` : ""}
-                                    onChange={(e) => {
-                                        const val = e.target.value.replace(/[^0-9]/g, "");
-                                        setTopUpData({ ...topUpData, amount: val });
-                                    }}
-                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-slate-50/50"
-                                    placeholder="Rp 0"
-                                    required
+                                    value={
+                                        editingTx.amount
+                                            ? `Rp ${parseInt(editingTx.amount.toString().replace(/[^0-9]/g, "") || 0).toLocaleString("id-ID")}`
+                                            : ""
+                                    }
+                                    disabled
+                                    className="w-full px-3 py-2 border border-slate-200 bg-slate-100 text-slate-500 cursor-not-allowed rounded-lg text-xs font-bold"
                                 />
                             </div>
-                            <div className="flex gap-2 pt-2">
-                                <button type="button" onClick={() => setShowTopUpModal(false)} className="flex-1 py-2.5 bg-slate-100 text-slate-600 font-bold text-sm rounded-xl hover:bg-slate-200">Batal</button>
-                                <button type="submit" className="flex-1 py-2.5 bg-emerald-600 text-white font-bold text-sm rounded-xl hover:bg-emerald-700 shadow-md shadow-emerald-200">Top Up</button>
+
+                            {/* Kategori & Dompet */}
+                            {editingTx.type !== "income" && (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
+                                            Kategori
+                                        </label>
+                                        <select
+                                            value={editingTx.categoryId}
+                                            onChange={(e) =>
+                                                setEditingTx({
+                                                    ...editingTx,
+                                                    categoryId: e.target.value,
+                                                })
+                                            }
+                                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white text-slate-800 focus:ring-1 focus:ring-blue-500"
+                                        >
+                                            {categories.map((c) => (
+                                                <option key={c.id} value={c.id}>
+                                                    {c.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
+                                            Dompet
+                                        </label>
+                                        <select
+                                            value={editingTx.walletId}
+                                            onChange={(e) =>
+                                                setEditingTx({
+                                                    ...editingTx,
+                                                    walletId: e.target.value,
+                                                })
+                                            }
+                                            className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white text-slate-800 focus:ring-1 focus:ring-blue-500"
+                                        >
+                                            {wallets.map((w) => (
+                                                <option key={w.id} value={w.id}>
+                                                    {w.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Tanggal */}
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
+                                    Tanggal
+                                </label>
+                                <input
+                                    type="date"
+                                    value={editingTx.date}
+                                    onChange={(e) =>
+                                        setEditingTx({
+                                            ...editingTx,
+                                            date: e.target.value,
+                                        })
+                                    }
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs text-slate-800 focus:ring-1 focus:ring-blue-500"
+                                />
+                            </div>
+
+                            {/* Deskripsi (at the bottom) */}
+                            <div>
+                                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">
+                                    Deskripsi
+                                </label>
+                                <input
+                                    type="text"
+                                    value={editingTx.description}
+                                    onChange={(e) =>
+                                        setEditingTx({
+                                            ...editingTx,
+                                            description: e.target.value,
+                                        })
+                                    }
+                                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:ring-1 focus:ring-blue-500 text-slate-800"
+                                />
+                            </div>
+
+                            {/* Anggota (Hidden input, because member is determined by active login session) */}
+                            <input type="hidden" value={editingTx.memberId} />
+
+                            <div className="flex justify-end space-x-2 pt-4 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setEditingTx(null)}
+                                    className="px-4 py-2 border border-slate-200 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-50 transition-all"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    type="submit"
+                                    className="px-5 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 shadow-md shadow-blue-100 transition-all"
+                                >
+                                    Simpan Perubahan
+                                </button>
                             </div>
                         </form>
                     </div>
                 </div>
             )}
+            {/* MODAL TOP UP KANTONG */}
+            <TopUpModal
+                isOpen={showTopUpModal}
+                onClose={() => setShowTopUpModal(false)}
+                topUpData={topUpData}
+                setTopUpData={setTopUpData}
+                onSubmit={handleTopUpSubmit}
+                wallets={wallets}
+                currentUser={currentUser}
+                formatIDR={formatIDR}
+            />
+
+            {/* MODAL PEMINDAHAN UANG UNIVERSAL */}
+            <TransferModal
+                isOpen={showTransferModal}
+                onClose={() => setShowTransferModal(false)}
+                transferData={transferData}
+                setTransferData={setTransferData}
+                onSubmit={handleTransferSubmit}
+                wallets={wallets}
+                members={members}
+                currentUser={currentUser}
+                formatIDR={formatIDR}
+            />
         </div>
     );
 }

@@ -10,7 +10,11 @@ class Wallet extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $fillable = ['name', 'balance', 'type', 'color', 'icon', 'user_id'];
+    protected $fillable = ['name', 'balance', 'type', 'color', 'icon', 'user_id', 'is_utama'];
+
+    protected $casts = [
+        'is_utama' => 'boolean',
+    ];
 
     public function transactions()
     {

@@ -14,6 +14,7 @@ use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\TrashController;
+use App\Http\Controllers\ActivityLogController;
 
 Route::middleware('auth')->group(function () {
     Route::post('/transactions', [TransactionController::class, 'store'])->name('transactions.store');
@@ -24,70 +25,29 @@ Route::middleware('auth')->group(function () {
     Route::delete('/trash/force-delete/{type}/{id}', [TrashController::class, 'forceDelete'])->name('trash.forceDelete');
 
     Route::post('/categories', [CategoryController::class, 'store'])->name('categories.store');
+    Route::put('/categories/{id}', [CategoryController::class, 'update'])->name('categories.update');
     Route::delete('/categories/{id}', [CategoryController::class, 'destroy'])->name('categories.destroy');
+
+    Route::post('/budget/waterfall', [App\Http\Controllers\BudgetController::class, 'runWaterfall'])->name('budget.waterfall');
+    Route::post('/budget/close-month', [App\Http\Controllers\BudgetController::class, 'closeMonth'])->name('budget.close-month');
+    Route::get('/budget/snapshots', [App\Http\Controllers\BudgetController::class, 'getSnapshots'])->name('budget.snapshots');
 
     Route::post('/wallets', [App\Http\Controllers\WalletController::class, 'store'])->name('wallets.store');
     Route::put('/wallets/{id}', [App\Http\Controllers\WalletController::class, 'update'])->name('wallets.update');
     Route::delete('/wallets/{id}', [App\Http\Controllers\WalletController::class, 'destroy'])->name('wallets.destroy');
+    Route::post('/wallets/top-up', [App\Http\Controllers\WalletController::class, 'topUp'])->name('wallets.top-up');
+    Route::post('/wallets/transfer', [App\Http\Controllers\WalletController::class, 'transfer'])->name('wallets.transfer');
 
     Route::post('/users', [UserController::class, 'store'])->name('users.store');
     Route::put('/users/{id}', [UserController::class, 'update'])->name('users.update');
     Route::delete('/users/{id}', [UserController::class, 'destroy'])->name('users.destroy');
 
-    Route::post('/logs', function(Illuminate\Http\Request $request) {
-        $validated = $request->validate([
-            'action' => 'required|string',
-            'description' => 'required|string',
-            'icon' => 'nullable|string',
-            'color' => 'nullable|string',
-        ]);
-        
-        $log = \App\Models\ActivityLog::create(array_merge($validated, [
-            'user_id' => auth()->id()
-        ]));
-        
-        $log->load('user');
-        
-        return response()->json([
-            'id' => (string) $log->id,
-            'action' => $log->action,
-            'description' => $log->description,
-            'icon' => $log->icon,
-            'color' => $log->color,
-            'date' => $log->created_at->toISOString(),
-            'user' => $log->user ? ['name' => $log->user->name, 'avatarColor' => $log->user->avatarColor] : null,
-        ]);
-    })->name('logs.store');
 
-    Route::get('/logs', function(Illuminate\Http\Request $request) {
-        $perPage = (int) $request->query('per_page', 15);
-        $perPage = max(1, min(100, $perPage));
-        $logs = \App\Models\ActivityLog::with('user')->orderBy('created_at', 'desc')->paginate($perPage);
-        $logs->getCollection()->transform(function($l) {
-            return [
-                'id' => (string) $l->id,
-                'action' => $l->action,
-                'description' => $l->description,
-                'icon' => $l->icon,
-                'color' => $l->color,
-                'date' => $l->created_at->toISOString(),
-                'user' => $l->user ? ['name' => $l->user->name, 'avatarColor' => $l->user->avatarColor] : null,
-            ];
-        });
-        return response()->json($logs);
-    })->name('logs.index');
 
-    Route::get('/api/dashboard/metrics', function(\Illuminate\Http\Request $request) {
-        $force = $request->query('force_recalculate') === 'true';
-        $cached = \App\Models\DashboardAnalyticsCache::where('key', 'global_metrics')->first();
-        if (!$cached || $force) {
-            $service = new \App\Services\DashboardAnalyticsService();
-            $data = $service->calculateAndCache();
-        } else {
-            $data = $cached->data;
-        }
-        return response()->json($data);
-    })->name('dashboard.metrics');
+    Route::post('/logs', [ActivityLogController::class, 'store'])->name('logs.store');
+    Route::get('/logs', [ActivityLogController::class, 'index'])->name('logs.index');
+
+    Route::get('/api/dashboard/metrics', [DashboardController::class, 'metrics'])->name('dashboard.metrics');
 
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');

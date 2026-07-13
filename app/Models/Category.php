@@ -10,10 +10,20 @@ class Category extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $fillable = ['name', 'icon', 'color', 'budget'];
+    protected $fillable = ['name', 'icon', 'color', 'budget', 'parent_id', 'priority_level'];
 
     public function transactions()
     {
         return $this->hasMany(Transaction::class);
+    }
+
+    public function parent()
+    {
+        return $this->belongsTo(Category::class, 'parent_id');
+    }
+
+    public function children()
+    {
+        return $this->hasMany(Category::class, 'parent_id');
     }
 }

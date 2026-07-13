@@ -3,7 +3,7 @@ import {
     Wallet, TrendingUp, TrendingDown, PiggyBank, Activity, 
     ArrowUpRight, ArrowDownRight, Target, Calendar,
     Lightbulb, ShieldCheck, Home, Plane, GraduationCap, AlertCircle, 
-    CheckCircle2, ChevronRight, RefreshCw, AlertOctagon, Sparkles, AlertTriangle
+    CheckCircle2, ChevronRight, ChevronDown, RefreshCw, AlertOctagon, Sparkles, AlertTriangle
 } from 'lucide-react';
 import { 
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
@@ -11,6 +11,8 @@ import {
 } from 'recharts';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import MicroTrackerCard from './MicroTrackerCard';
+import useExecutiveDashboard from '../Hooks/useExecutiveDashboard';
 
 // Utils
 const formatCurrency = (value) => {
@@ -29,32 +31,17 @@ const SectionTitle = ({ title, subtitle, icon }) => (
     </div>
 );
 
-export default function ExecutiveDashboard() {
-    const [loading, setLoading] = useState(true);
-    const [recaching, setRecaching] = useState(false);
-    const [data, setData] = useState(null);
-    const [error, setError] = useState(null);
+export default function ExecutiveDashboard({ categories = [], transactions = [], currentUser }) {
+    const isIstri = currentUser?.role === "Istri";
+    const {
+        data,
+        loading,
+        recaching,
+        error,
+        fetchMetrics
+    } = useExecutiveDashboard(categories, transactions);
 
-    const fetchMetrics = async (force = false) => {
-        if (force) setRecaching(true);
-        else setLoading(true);
-        setError(null);
-        try {
-            const url = force ? '/api/dashboard/metrics?force_recalculate=true' : '/api/dashboard/metrics';
-            const response = await axios.get(url);
-            setData(response.data);
-        } catch (err) {
-            console.error('Failed to fetch dashboard metrics:', err);
-            setError('Gagal memuat data analitik dashboard. Silakan coba lagi.');
-        } finally {
-            setLoading(false);
-            setRecaching(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchMetrics();
-    }, []);
+    const [isMicroBudgetOpen, setIsMicroBudgetOpen] = useState(false);
 
     if (loading) {
         return (
@@ -131,19 +118,21 @@ export default function ExecutiveDashboard() {
                     </h1>
                     <p className="text-sm text-slate-500">Proyeksi, anomali, & rekomendasi keuangan keluarga berbasis Z-Score dan EMA</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <span className="text-xs text-slate-400 font-mono hidden md:inline-block">
-                        {data.safe_to_spend.calibration_text}
-                    </span>
-                    <button
-                        onClick={() => fetchMetrics(true)}
-                        disabled={recaching}
-                        className="px-4 py-2 border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
-                    >
-                        <RefreshCw className={`w-4 h-4 ${recaching ? 'animate-spin' : ''}`} />
-                        {recaching ? 'Merekalkulasi...' : 'Rencana Ulang / Sinkronkan'}
-                    </button>
-                </div>
+                {!isIstri && (
+                    <div className="flex items-center gap-3">
+                        <span className="text-xs text-slate-400 font-mono hidden md:inline-block">
+                            {data.safe_to_spend.calibration_text}
+                        </span>
+                        <button
+                            onClick={() => fetchMetrics(true)}
+                            disabled={recaching}
+                            className="px-4 py-2 border border-slate-200 hover:border-slate-300 bg-white hover:bg-slate-50 text-slate-700 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 shadow-sm disabled:opacity-50"
+                        >
+                            <RefreshCw className={`w-4 h-4 ${recaching ? 'animate-spin' : ''}`} />
+                            {recaching ? 'Merekalkulasi...' : 'Rencana Ulang / Sinkronkan'}
+                        </button>
+                    </div>
+                )}
             </div>
 
             {/* Section 1: Financial Pacing and Liquidity Cards */}
@@ -227,6 +216,52 @@ export default function ExecutiveDashboard() {
                         <span className="font-bold text-white">Sangat Optimal</span>
                     </div>
                 </motion.div>
+            </div>
+
+            {/* Micro-monitoring UI tracking card - Collapse Accordion */}
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden transition-all duration-300">
+                <button
+                    onClick={() => setIsMicroBudgetOpen(!isMicroBudgetOpen)}
+                    className="w-full flex items-center justify-between p-5 hover:bg-slate-50/50 text-left transition-colors"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600">
+                            <Activity className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h4 className="text-sm font-black text-slate-800">Pemantauan Micro-Budget Harian</h4>
+                            <p className="text-[10px] text-slate-400 font-semibold mt-0.5">Analisis laju pengeluaran real-time berdasarkan laju sisa hari bulan berjalan</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        {data.micro_monitoring?.warning_categories?.length > 0 && (
+                            <span className="text-[9px] font-bold bg-rose-50 text-rose-600 border border-rose-100 px-2 py-0.5 rounded-full">
+                                {data.micro_monitoring.warning_categories.length} Kategori Kritis
+                            </span>
+                        )}
+                        <ChevronDown className={`w-5 h-5 text-slate-450 transition-transform duration-300 ${isMicroBudgetOpen ? 'rotate-180' : ''}`} />
+                    </div>
+                </button>
+
+                <AnimatePresence initial={false}>
+                    {isMicroBudgetOpen && (
+                        <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.3 }}
+                        >
+                            <div className="border-t border-slate-50 p-6 bg-slate-50/30">
+                                <MicroTrackerCard 
+                                    categories={categories} 
+                                    transactions={transactions} 
+                                    currentMonthProgress={data.micro_monitoring?.month_elapsed_percent || 0.5}
+                                    warningCategories={data.micro_monitoring?.warning_categories || []}
+                                />
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
 
             {/* Section 2: Anomalies & Recommendations Row */}

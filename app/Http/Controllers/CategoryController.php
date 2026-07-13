@@ -2,29 +2,51 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreCategoryRequest;
+use App\Http\Requests\UpdateCategoryRequest;
 use App\Models\Category;
-use Illuminate\Http\Request;
+use App\Services\CategoryService;
+use Illuminate\Http\RedirectResponse;
 
 class CategoryController extends Controller
 {
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'icon' => 'required|string|max:50',
-            'color' => 'required|string|max:50',
-            'budget' => 'required|numeric|min:0',
-        ]);
+    protected $categoryService;
 
-        Category::create($validated);
+    public function __construct(CategoryService $categoryService)
+    {
+        $this->categoryService = $categoryService;
+    }
+
+    /**
+     * Store a newly created category.
+     */
+    public function store(StoreCategoryRequest $request): RedirectResponse
+    {
+        $this->categoryService->createCategory($request->validated());
 
         return redirect()->back()->with('message', 'Kategori berhasil ditambahkan.');
     }
 
-    public function destroy($id)
+    /**
+     * Update the specified category.
+     */
+    public function update(UpdateCategoryRequest $request, int $id): RedirectResponse
     {
         $category = Category::findOrFail($id);
-        $category->delete();
+
+        $this->categoryService->updateCategory($category, $request->validated());
+
+        return redirect()->back()->with('message', 'Kategori berhasil diperbarui.');
+    }
+
+    /**
+     * Remove the specified category.
+     */
+    public function destroy(int $id): RedirectResponse
+    {
+        $category = Category::findOrFail($id);
+
+        $this->categoryService->deleteCategory($category);
 
         return redirect()->back()->with('message', 'Kategori berhasil dihapus.');
     }
