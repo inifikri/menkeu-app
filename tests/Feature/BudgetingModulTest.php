@@ -19,10 +19,10 @@ class BudgetingModulTest extends TestCase
     {
         parent::setUp();
 
-        // Ensure database connection is mysql for these integration tests if pdo_sqlite is missing
-        if (!extension_loaded('pdo_sqlite')) {
-            $this->app['config']->set('database.default', 'mysql');
-        }
+        $this->app['config']->set('database.default', 'mysql');
+        $this->app['config']->set('database.connections.mysql.database', 'mkeuangan_db');
+        $this->app['config']->set('database.connections.mysql.username', 'root');
+        $this->app['config']->set('database.connections.mysql.password', 'Password');
     }
 
     public function test_category_parent_children_relationship()
@@ -51,6 +51,9 @@ class BudgetingModulTest extends TestCase
 
     public function test_waterfall_allocation_service()
     {
+        // Clear existing wallets to avoid conflicts
+        Wallet::query()->delete();
+
         // 1. Setup Wallet Utama
         $wallet = Wallet::create([
             'name' => 'Dompet Utama Test',
@@ -99,6 +102,9 @@ class BudgetingModulTest extends TestCase
 
     public function test_api_blocks_manual_priority_level_5_budget_exceeding_waterfall_limit()
     {
+        // Clear existing wallets to avoid conflicts
+        Wallet::query()->delete();
+
         $user = User::factory()->create();
         $this->actingAs($user);
 
@@ -145,6 +151,9 @@ class BudgetingModulTest extends TestCase
 
     public function test_close_month_calculates_correct_accuracy()
     {
+        // Clear existing wallets to avoid conflicts
+        Wallet::query()->delete();
+
         $user = User::factory()->create();
         $this->actingAs($user);
 

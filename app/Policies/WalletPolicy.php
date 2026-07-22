@@ -72,11 +72,24 @@ class WalletPolicy
     }
 
     /**
+     * Determine if the user can update a wallet.
+     */
+    public function update(User $user, Wallet $wallet): bool
+    {
+        if (in_array($user->role, ['Administrator', 'Admin', 'admin', 'Suami'])) {
+            return true;
+        }
+
+        // Users can only update their own wallets
+        return $wallet->user_id === $user->id;
+    }
+
+    /**
      * Determine if the user can delete a wallet.
      */
     public function delete(User $user, Wallet $wallet): bool
     {
-        if ($user->role === 'Admin') {
+        if (in_array($user->role, ['Administrator', 'Admin', 'admin', 'Suami'])) {
             return true;
         }
 

@@ -26,5 +26,43 @@ class AppServiceProvider extends ServiceProvider
             \App\Events\BulkTransactionsSaved::class,
             \App\Listeners\CalculateDashboardAnalytics::class
         );
+
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Events\DeviceRegistered::class,
+            \App\Listeners\SecurityLogListener::class
+        );
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Events\PinCreated::class,
+            \App\Listeners\SecurityLogListener::class
+        );
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Events\PinChanged::class,
+            \App\Listeners\SecurityLogListener::class
+        );
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Events\DeviceRemoved::class,
+            \App\Listeners\SecurityLogListener::class
+        );
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Events\LoginUsingPIN::class,
+            \App\Listeners\SecurityLogListener::class
+        );
+        \Illuminate\Support\Facades\Event::listen(
+            \App\Events\LoginUsingPIN::class,
+            \App\Listeners\UpdateLastLoginListener::class
+        );
+
+        \Illuminate\Support\Facades\Event::listen(
+            \Illuminate\Auth\Events\Login::class,
+            \App\Listeners\SecurityLogListener::class
+        );
+        \Illuminate\Support\Facades\Event::listen(
+            \Illuminate\Auth\Events\Logout::class,
+            \App\Listeners\SecurityLogListener::class
+        );
+        \Illuminate\Support\Facades\Event::listen(
+            \Illuminate\Auth\Events\Failed::class,
+            \App\Listeners\SecurityLogListener::class
+        );
     }
 }

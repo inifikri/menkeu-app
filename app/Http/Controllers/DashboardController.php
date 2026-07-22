@@ -32,6 +32,26 @@ class DashboardController extends Controller
             $request->session()->getId()
         );
 
+        $trustedDevice = null;
+        if (!$user) {
+            $deviceService = app(\App\Services\Authentication\DeviceService::class);
+            $trustedDeviceService = app(\App\Services\Authentication\TrustedDeviceService::class);
+            $deviceModel = $trustedDeviceService->getDeviceByRequest($request);
+            if ($deviceModel) {
+                $token = $deviceService->getDeviceTokenFromCookie($request);
+                if ($token === $deviceModel->remember_token && 
+                    (!$deviceModel->remember_until || \Carbon\Carbon::now()->lessThan($deviceModel->remember_until))) {
+                    $trustedDevice = [
+                        'id' => $deviceModel->id,
+                        'device_name' => $deviceModel->device_name,
+                        'user_email' => $deviceModel->user->email,
+                        'user_name' => $deviceModel->user->name,
+                    ];
+                }
+            }
+        }
+        $dashboardData['trustedDevice'] = $trustedDevice;
+
         return Inertia::render('Dashboard', $dashboardData);
     }
 

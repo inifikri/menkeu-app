@@ -11,6 +11,22 @@ class UpdateTransactionRequest extends FormRequest
      */
     public function authorize(): bool
     {
+        $user = $this->user();
+        if (in_array($user->role, ['Administrator', 'Admin', 'admin', 'Suami'])) {
+            return true;
+        }
+
+        if ($this->has('user_id') && (int)$this->input('user_id') !== $user->id) {
+            return false;
+        }
+
+        if ($this->has('wallet_id')) {
+            $wallet = \App\Models\Wallet::find($this->input('wallet_id'));
+            if ($wallet && $wallet->user_id !== null && $wallet->user_id !== $user->id) {
+                return false;
+            }
+        }
+
         return true;
     }
 

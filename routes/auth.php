@@ -34,6 +34,9 @@ Route::middleware(['guest', 'throttle:10,1'])->group(function () {
 
     Route::post('reset-password', [NewPasswordController::class, 'store'])
         ->name('password.store');
+
+    Route::post('pin/login', [\App\Http\Controllers\Auth\AuthenticationEnhancementController::class, 'pinLogin'])
+        ->name('pin.login');
 });
 
 Route::middleware('auth')->group(function () {
@@ -57,4 +60,22 @@ Route::middleware('auth')->group(function () {
 
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])
         ->name('logout');
+
+    // Authentication Enhancement Routes
+    Route::get('device-register', [\App\Http\Controllers\Auth\AuthenticationEnhancementController::class, 'showRegisterDevice'])
+        ->name('device.register');
+    Route::post('device-register', [\App\Http\Controllers\Auth\AuthenticationEnhancementController::class, 'storeRegisterDevice'])
+        ->name('device.register.store');
+    Route::post('pin/create', [\App\Http\Controllers\Auth\AuthenticationEnhancementController::class, 'pinCreate'])
+        ->name('pin.create');
+    Route::post('pin/reset', [\App\Http\Controllers\Auth\AuthenticationEnhancementController::class, 'pinReset'])
+        ->name('pin.reset');
+    Route::get('trusted-devices', [\App\Http\Controllers\Auth\AuthenticationEnhancementController::class, 'indexDevices'])
+        ->name('trusted-devices.index');
+    Route::delete('trusted-devices/{id}', [\App\Http\Controllers\Auth\AuthenticationEnhancementController::class, 'destroyDevice'])
+        ->name('trusted-devices.destroy');
+    Route::put('trusted-devices/{id}', [\App\Http\Controllers\Auth\AuthenticationEnhancementController::class, 'updateDevice'])
+        ->name('trusted-devices.update');
+    Route::delete('trusted-devices', [\App\Http\Controllers\Auth\AuthenticationEnhancementController::class, 'destroyAllDevices'])
+        ->name('trusted-devices.destroy-all');
 });

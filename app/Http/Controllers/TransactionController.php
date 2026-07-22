@@ -36,6 +36,8 @@ class TransactionController extends Controller
     public function update(UpdateTransactionRequest $request, int $id): RedirectResponse
     {
         $transaction = Transaction::findOrFail($id);
+        \Illuminate\Support\Facades\Gate::authorize('update', $transaction);
+
         $this->transactionService->updateTransaction($transaction, $request->validated());
 
         return redirect()->back()->with('message', 'Transaksi berhasil diperbarui.');
@@ -47,6 +49,8 @@ class TransactionController extends Controller
     public function destroy(int $id): RedirectResponse
     {
         $transaction = Transaction::findOrFail($id);
+        \Illuminate\Support\Facades\Gate::authorize('delete', $transaction);
+
         $this->transactionService->deleteTransaction($transaction);
 
         return redirect()->back()->with('message', 'Transaksi berhasil dihapus.');

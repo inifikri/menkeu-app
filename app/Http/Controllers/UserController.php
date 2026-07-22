@@ -10,6 +10,8 @@ class UserController extends Controller
 {
     public function store(Request $request)
     {
+        \Illuminate\Support\Facades\Gate::authorize('manage', User::class);
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
@@ -28,6 +30,8 @@ class UserController extends Controller
 
     public function update(Request $request, $id)
     {
+        \Illuminate\Support\Facades\Gate::authorize('manage', User::class);
+
         $user = User::findOrFail($id);
 
         $validated = $request->validate([
@@ -47,6 +51,8 @@ class UserController extends Controller
 
     public function destroy($id)
     {
+        \Illuminate\Support\Facades\Gate::authorize('manage', User::class);
+
         $user = User::findOrFail($id);
         $user->delete();
 

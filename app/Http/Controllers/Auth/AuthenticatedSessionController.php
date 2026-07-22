@@ -16,8 +16,20 @@ class AuthenticatedSessionController extends Controller
     /**
      * Display the login view.
      */
-    public function create(): Response
+    public function create(Request $request)
     {
+        $deviceService = app(\App\Services\Authentication\DeviceService::class);
+        $trustedDeviceService = app(\App\Services\Authentication\TrustedDeviceService::class);
+        $deviceModel = $trustedDeviceService->getDeviceByRequest($request);
+
+        if ($deviceModel) {
+            $token = $deviceService->getDeviceTokenFromCookie($request);
+            if ($token === $deviceModel->remember_token && 
+                (!$deviceModel->remember_until || \Carbon\Carbon::now()->lessThan($deviceModel->remember_until))) {
+                return redirect()->route('dashboard');
+            }
+        }
+
         return Inertia::render('Auth/Login', [
             'canResetPassword' => Route::has('password.request'),
             'status' => session('status'),

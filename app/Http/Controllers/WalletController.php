@@ -37,6 +37,8 @@ class WalletController extends Controller
     public function update(UpdateWalletRequest $request, int $id): RedirectResponse
     {
         $wallet = Wallet::findOrFail($id);
+        \Illuminate\Support\Facades\Gate::authorize('update', $wallet);
+
         $this->walletService->updateWallet($wallet, $request->validated(), $wallet->user_id ?? auth()->id());
 
         event(new \App\Events\BulkTransactionsSaved());
